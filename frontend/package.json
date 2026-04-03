@@ -3,10 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "homepage": "https://acridgold.github.io/STIK-Hackathon-2026/",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "npm run build && gh-pages -d dist",
+    "deploy:gh-pages": "npm run build && gh-pages -d dist -m 'Deploy: GitHub Pages'"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -20,6 +23,7 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
-    "vite": "^5.4.0"
+    "vite": "^5.4.0",
+    "gh-pages": "^6.1.1"
   }
 }
