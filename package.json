@@ -5,11 +5,11 @@
   "type": "module",
   "homepage": "https://acridgold.github.io/STIK-Hackathon-2026/",
   "scripts": {
-    "dev": "cd frontend && vite",
-    "build": "cd frontend && vite build",
-    "preview": "cd frontend && vite preview",
-    "predeploy": "cd frontend && npm run build",
-    "deploy": "cd frontend && gh-pages -d dist"
+    "dev": "vite --config frontend/vite.config.js",
+    "build": "vite build --config frontend/vite.config.js",
+    "preview": "vite preview --config frontend/vite.config.js",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d frontend/dist"
   },
   "dependencies": {
     "react": "^18.3.1",
