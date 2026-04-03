@@ -9,4 +9,5 @@ export default defineConfig({
         },
     },
     base: '/STIK-Hackathon-2026/',
+    root: 'frontend',
 })

@@ -1,0 +1,29 @@
+{
+  "name": "erp-learning-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "homepage": "https://acridgold.github.io/STIK-Hackathon-2026/",
+  "scripts": {
+    "dev": "cd frontend && vite",
+    "build": "cd frontend && vite build",
+    "preview": "cd frontend && vite preview",
+    "predeploy": "cd frontend && npm run build",
+    "deploy": "cd frontend && gh-pages -d dist"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.0",
+    "zustand": "^5.0.0",
+    "date-fns": "^3.6.0",
+    "lucide-react": "^0.436.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.0",
+    "gh-pages": "^6.1.1"
+  }
+}
