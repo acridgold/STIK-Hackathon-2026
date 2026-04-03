@@ -1,5 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
-import { Calendar, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Calendar, AlertCircle, Download, ChevronLeft, ChevronRight } from 'lucide-react'
+import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
 
 export default function GanttChart({ groups = [], courses = [], onGroupClick }) {
     const [viewMode, setViewMode] = useState('month')
@@ -16,14 +18,6 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
         if (!group.participants?.length) return 0
         const sum = group.participants.reduce((acc, p) => acc + (p.progress || 0), 0)
         return Math.round(sum / group.participants.length)
-    }
-
-    // Расчет стоимости группы
-    const calcCost = (group) => {
-        const course = courses.find(c => c.id === group.courseId)
-        if (!course || !group.participants) return 0
-        const price = course.priceHistory?.[course.priceHistory.length - 1]?.price || 0
-        return price * group.participants.length
     }
 
     // Проверка конфликтов
@@ -51,12 +45,15 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
         })
     }
 
-    // Определение границ временной шкалы
-    const { minDate, maxDate } = useMemo(() => {
+    // Определение всех дат для шкалы
+    const { allDates, minDate, maxDate } = useMemo(() => {
         if (!groups.length) {
             const now = new Date()
-            return { minDate: now, maxDate: new Date(now.setMonth(now.getMonth() + 3)) }
+            const start = new Date(now.getFullYear(), now.getMonth(), 1)
+            const end = new Date(now.getFullYear(), now.getMonth() + 3, 0)
+            return { allDates: [], minDate: start, maxDate: end }
         }
+        
         let min = new Date(groups[0].startDate)
         let max = new Date(groups[0].endDate)
         groups.forEach(g => {
@@ -65,59 +62,129 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
             if (start < min) min = start
             if (end > max) max = end
         })
-        return { minDate: min, maxDate: max }
-    }, [groups])
-
-    // Генерация колонок временной шкалы
-    const timelineColumns = useMemo(() => {
-        const columns = []
-        let current = new Date(minDate)
-        const end = new Date(maxDate)
-
-        while (current <= end) {
-            let label = ''
-            let width = 100
-            const date = new Date(current)
-
-            switch (viewMode) {
-                case 'week':
-                    label = `Нед ${Math.ceil(date.getDate() / 7)}/${date.getMonth() + 1}`
-                    current.setDate(current.getDate() + 7)
-                    width = 80
-                    break
-                case 'month':
-                    label = date.toLocaleString('ru', { month: 'short' })
-                    current.setMonth(current.getMonth() + 1)
-                    width = 100
-                    break
-                case 'quarter':
-                    const quarter = Math.floor(date.getMonth() / 3) + 1
-                    label = `${quarter} кв`
-                    current.setMonth(current.getMonth() + 3)
-                    width = 120
-                    break
-                default:
-                    label = date.toLocaleString('ru', { month: 'short' })
-                    current.setMonth(current.getMonth() + 1)
-                    width = 100
+        
+        // Добавляем отступ по 30 дней
+        const paddedMin = new Date(min)
+        paddedMin.setDate(min.getDate() - 30)
+        const paddedMax = new Date(max)
+        paddedMax.setDate(max.getDate() + 30)
+        
+        // Генерируем массив дат для колонок
+        const dates = []
+        let current = new Date(paddedMin)
+        while (current <= paddedMax) {
+            dates.push(new Date(current))
+            if (viewMode === 'week') {
+                current.setDate(current.getDate() + 7)
+            } else if (viewMode === 'month') {
+                current.setMonth(current.getMonth() + 1)
+            } else {
+                current.setMonth(current.getMonth() + 3)
             }
-            columns.push({ label, width, date: new Date(date) })
         }
-        return columns
-    }, [minDate, maxDate, viewMode])
+        
+        return { allDates: dates, minDate: paddedMin, maxDate: paddedMax }
+    }, [groups, viewMode])
 
-    // Расчет позиции группы на шкале
-    const getGroupStyle = (group) => {
-        const totalDuration = maxDate.getTime() - minDate.getTime()
-        const start = new Date(group.startDate).getTime() - minDate.getTime()
-        const end = new Date(group.endDate).getTime() - minDate.getTime()
-        const left = (start / totalDuration) * 100
-        const width = ((end - start) / totalDuration) * 100
-        return { left: `${left}%`, width: `${width}%` }
+    // Ширина колонки в пикселях
+    const columnWidth = viewMode === 'week' ? 100 : viewMode === 'month' ? 120 : 150
+    
+    // Общая ширина контейнера
+    const totalWidth = allDates.length * columnWidth + 250 // 250px - ширина левой колонки
+
+    // Позиция группы (в пикселях, а не процентах!)
+    const getGroupPosition = (group) => {
+        const groupStart = new Date(group.startDate)
+        const groupEnd = new Date(group.endDate)
+        
+        // Находим индекс начальной колонки
+        let startIndex = 0
+        let endIndex = allDates.length - 1
+        
+        for (let i = 0; i < allDates.length; i++) {
+            const colDate = allDates[i]
+            const nextColDate = allDates[i + 1] || new Date(colDate.getTime() + 30 * 24 * 60 * 60 * 1000)
+            
+            if (groupStart >= colDate && groupStart < nextColDate) {
+                startIndex = i
+            }
+            if (groupEnd >= colDate && groupEnd < nextColDate) {
+                endIndex = i
+                break
+            }
+        }
+        
+        const left = startIndex * columnWidth
+        const width = (endIndex - startIndex + 1) * columnWidth
+        
+        return { left, width }
+    }
+
+    // Форматирование заголовка колонки
+    const getColumnLabel = (date) => {
+        if (viewMode === 'week') {
+            const weekNum = Math.ceil(date.getDate() / 7)
+            return `${weekNum}/${date.getMonth() + 1}`
+        } else if (viewMode === 'month') {
+            return date.toLocaleString('ru', { month: 'short' })
+        } else {
+            const quarter = Math.floor(date.getMonth() / 3) + 1
+            return `${quarter} кв`
+        }
+    }
+
+    // Экспорт в PDF
+    const exportToPDF = async () => {
+        const element = document.getElementById('gantt-container')
+        if (!element) return
+        
+        try {
+            const canvas = await html2canvas(element, {
+                scale: 2,
+                backgroundColor: '#1a1a2e',
+                logging: false
+            })
+            const imgData = canvas.toDataURL('image/png')
+            const pdf = new jsPDF('landscape')
+            pdf.addImage(imgData, 'PNG', 5, 5, 290, 150)
+            pdf.save(`gantt-chart-${new Date().toISOString().slice(0, 10)}.pdf`)
+        } catch (error) {
+            console.error('Ошибка экспорта PDF:', error)
+            alert('Не удалось создать PDF')
+        }
+    }
+
+    // Скролл к текущей дате
+    useEffect(() => {
+        if (scrollRef.current && allDates.length > 0) {
+            const today = new Date()
+            let todayIndex = 0
+            for (let i = 0; i < allDates.length; i++) {
+                if (allDates[i] <= today && (!allDates[i + 1] || allDates[i + 1] > today)) {
+                    todayIndex = i
+                    break
+                }
+            }
+            const scrollTo = todayIndex * columnWidth - 200
+            if (scrollTo > 0) {
+                scrollRef.current.scrollLeft = scrollTo
+            }
+        }
+    }, [allDates, columnWidth])
+
+    if (!groups.length) {
+        return (
+            <div className="glass-card" style={{ padding: '60px 20px', textAlign: 'center' }}>
+                <AlertCircle size={24} color="var(--accent-blue)" style={{ marginBottom: 12 }} />
+                <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
+                    Нет групп для отображения. Создайте учебную группу.
+                </p>
+            </div>
+        )
     }
 
     return (
-        <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div id="gantt-container" className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
             {/* Header */}
             <div style={{
                 padding: '16px 20px',
@@ -143,188 +210,244 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
                         </span>
                     )}
                 </div>
-                <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '40px' }}>
-                    {['week', 'month', 'quarter'].map(mode => (
-                        <button
-                            key={mode}
-                            onClick={() => setViewMode(mode)}
-                            style={{
-                                padding: '4px 12px',
-                                fontSize: 12,
-                                fontWeight: 500,
-                                background: viewMode === mode ? 'var(--accent-blue)' : 'transparent',
-                                color: viewMode === mode ? '#fff' : 'var(--text-secondary)',
-                                border: 'none',
-                                borderRadius: '30px',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            {mode === 'week' ? 'Неделя' : mode === 'month' ? 'Месяц' : 'Квартал'}
-                        </button>
-                    ))}
+                
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <button
+                        onClick={exportToPDF}
+                        style={{
+                            padding: '6px 14px',
+                            fontSize: 12,
+                            fontWeight: 500,
+                            background: 'rgba(77, 166, 255, 0.2)',
+                            color: 'var(--accent-blue)',
+                            border: '1px solid rgba(77, 166, 255, 0.3)',
+                            borderRadius: '30px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                        }}
+                    >
+                        <Download size={14} />
+                        Экспорт PDF
+                    </button>
+                    
+                    <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '40px' }}>
+                        {['week', 'month', 'quarter'].map(mode => (
+                            <button
+                                key={mode}
+                                onClick={() => setViewMode(mode)}
+                                style={{
+                                    padding: '4px 12px',
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    background: viewMode === mode ? 'var(--accent-blue)' : 'transparent',
+                                    color: viewMode === mode ? '#fff' : 'var(--text-secondary)',
+                                    border: 'none',
+                                    borderRadius: '30px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                {mode === 'week' ? 'Неделя' : mode === 'month' ? 'Месяц' : 'Квартал'}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 
-            {/* Диаграмма */}
-            {!groups.length ? (
-                <div style={{ padding: '60px 20px', textAlign: 'center' }}>
-                    <AlertCircle size={24} color="var(--accent-blue)" style={{ marginBottom: 12 }} />
-                    <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
-                        Нет групп для отображения. Создайте учебную группу.
-                    </p>
-                </div>
-            ) : (
-                <div ref={scrollRef} style={{ overflowX: 'auto' }}>
-                    <div style={{ minWidth: '800px' }}>
-                        {/* Заголовки колонок */}
-                        <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', background: 'rgba(0,0,0,0.2)' }}>
-                            <div style={{ width: '250px', flexShrink: 0, padding: '12px 16px', fontWeight: 600, fontSize: 13 }}>
-                                Учебная группа / Курс
-                            </div>
-                            <div style={{ display: 'flex', flex: 1 }}>
-                                {timelineColumns.map((col, i) => (
-                                    <div
-                                        key={i}
-                                        style={{
-                                            width: col.width,
-                                            flexShrink: 0,
-                                            padding: '12px 4px',
-                                            textAlign: 'center',
-                                            fontSize: 11,
-                                            fontWeight: 500,
-                                            color: 'var(--text-tertiary)',
-                                            borderRight: '1px solid var(--border-subtle)'
-                                        }}
-                                    >
-                                        {col.label}
-                                    </div>
-                                ))}
-                            </div>
+            {/* Область диаграммы с горизонтальным скроллом */}
+            <div 
+                ref={scrollRef} 
+                style={{ 
+                    overflowX: 'auto', 
+                    overflowY: 'auto', 
+                    maxHeight: '500px',
+                    position: 'relative'
+                }}
+            >
+                <div style={{ width: totalWidth, position: 'relative' }}>
+                    {/* Заголовки колонок */}
+                    <div style={{ 
+                        display: 'flex', 
+                        borderBottom: '1px solid var(--border-subtle)', 
+                        background: 'rgba(0,0,0,0.4)', 
+                        position: 'sticky', 
+                        top: 0, 
+                        zIndex: 10 
+                    }}>
+                        <div style={{ 
+                            width: '250px', 
+                            flexShrink: 0, 
+                            padding: '12px 16px', 
+                            fontWeight: 600, 
+                            fontSize: 13, 
+                            borderRight: '1px solid var(--border-subtle)',
+                            background: 'rgba(0,0,0,0.4)'
+                        }}>
+                            Учебная группа / Курс
                         </div>
-
-                        {/* Строки групп */}
-                        {groups.map(group => {
-                            const progress = calcProgress(group)
-                            const isConflict = hasConflict(group, groups)
-                            const style = getGroupStyle(group)
-
-                            return (
+                        <div style={{ display: 'flex' }}>
+                            {allDates.map((date, i) => (
                                 <div
-                                    key={group.id}
+                                    key={i}
                                     style={{
-                                        display: 'flex',
-                                        borderBottom: '1px solid var(--border-subtle)',
-                                        minHeight: '64px',
-                                        alignItems: 'center',
-                                        cursor: 'pointer'
-                                    }}
-                                    onClick={() => onGroupClick?.(group.id)}
-                                >
-                                    {/* Информация о группе */}
-                                    <div style={{
-                                        width: '250px',
+                                        width: columnWidth,
                                         flexShrink: 0,
-                                        padding: '12px 16px',
-                                        borderRight: '1px solid var(--border-subtle)',
-                                        background: isConflict ? 'rgba(239, 68, 68, 0.05)' : 'transparent'
-                                    }}>
-                                        <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>
-                                            {getCourseName(group.courseId)}
-                                        </div>
-                                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-                                            {group.participants?.length || 0} участ.
-                                        </div>
+                                        padding: '12px 4px',
+                                        textAlign: 'center',
+                                        fontSize: 11,
+                                        fontWeight: 500,
+                                        color: 'var(--text-tertiary)',
+                                        borderRight: '1px solid var(--border-subtle)'
+                                    }}
+                                >
+                                    {getColumnLabel(date)}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Строки групп */}
+                    {groups.map(group => {
+                        const progress = calcProgress(group)
+                        const isConflict = hasConflict(group, groups)
+                        const { left, width } = getGroupPosition(group)
+                        const courseName = getCourseName(group.courseId)
+                        const statusColor = group.status === 'active' ? '#34d399' : group.status === 'done' ? '#6b7280' : '#fbbf24'
+
+                        return (
+                            <div
+                                key={group.id}
+                                style={{
+                                    display: 'flex',
+                                    borderBottom: '1px solid var(--border-subtle)',
+                                    minHeight: '64px',
+                                    alignItems: 'center',
+                                    cursor: 'pointer',
+                                    transition: 'background 0.2s'
+                                }}
+                                onClick={() => onGroupClick?.(group.id)}
+                                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                            >
+                                {/* Левая колонка с информацией */}
+                                <div style={{
+                                    width: '250px',
+                                    flexShrink: 0,
+                                    padding: '12px 16px',
+                                    borderRight: '1px solid var(--border-subtle)',
+                                    background: isConflict ? 'rgba(239, 68, 68, 0.05)' : 'transparent'
+                                }}>
+                                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>
+                                        {courseName}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                                        {group.participants?.length || 0} участ. | {group.startDate} — {group.endDate}
+                                    </div>
+                                    <div style={{ fontSize: 11, marginTop: 4, color: statusColor }}>
+                                        {group.status === 'active' ? '🟢 В процессе' : group.status === 'done' ? '✅ Завершено' : '⏳ Планируется'}
+                                    </div>
+                                </div>
+
+                                {/* Область с сеткой и полосами */}
+                                <div style={{ position: 'relative', height: '80px', flex: 1 }}>
+                                    {/* Вертикальные линии сетки */}
+                                    <div style={{ display: 'flex', position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                                        {allDates.map((_, i) => (
+                                            <div
+                                                key={i}
+                                                style={{
+                                                    width: columnWidth,
+                                                    borderRight: '1px solid rgba(255,255,255,0.05)',
+                                                    height: '100%'
+                                                }}
+                                            />
+                                        ))}
                                     </div>
 
-                                    {/* Таймлайн */}
-                                    <div style={{ position: 'relative', flex: 1, height: '64px' }}>
-                                        {/* Сетка */}
-                                        <div style={{ display: 'flex', position: 'absolute', inset: 0 }}>
-                                            {timelineColumns.map((_, i) => (
-                                                <div
-                                                    key={i}
-                                                    style={{
-                                                        width: _.width,
-                                                        borderRight: '1px solid rgba(255,255,255,0.05)',
-                                                        height: '100%'
-                                                    }}
-                                                />
-                                            ))}
-                                        </div>
-
-                                        {/* Полоса группы */}
+                                    {/* Полоса группы */}
+                                    <div
+                                        style={{
+                                            position: 'absolute',
+                                            left: left,
+                                            width: width > 5 ? width : 5,
+                                            top: '20px',
+                                            height: '40px',
+                                            background: isConflict 
+                                                ? 'linear-gradient(90deg, #ef4444, #ff6b6b)'
+                                                : `linear-gradient(90deg, #4da6ff, ${progress > 50 ? '#34d399' : '#4da6ff'})`,
+                                            borderRadius: '20px',
+                                            transition: 'all 0.2s',
+                                            border: isConflict ? '1px solid #ff4444' : '1px solid rgba(255,255,255,0.2)',
+                                            overflow: 'hidden',
+                                            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                                            cursor: 'pointer'
+                                        }}
+                                        title={`${courseName}\nПрогресс: ${progress}%\nУчастников: ${group.participants?.length || 0}`}
+                                    >
+                                        {/* Индикатор прогресса */}
                                         <div
                                             style={{
                                                 position: 'absolute',
-                                                ...style,
-                                                top: '12px',
-                                                height: '40px',
-                                                background: `linear-gradient(90deg, ${isConflict ? '#ef4444' : '#4da6ff'} 0%, ${progress > 50 ? '#34d399' : isConflict ? '#ef4444' : '#4da6ff'} 100%)`,
-                                                borderRadius: '8px',
-                                                transition: 'all 0.2s',
-                                                border: isConflict ? '2px solid #ff4444' : '1px solid rgba(255,255,255,0.2)',
-                                                overflow: 'hidden'
+                                                left: 0,
+                                                top: 0,
+                                                bottom: 0,
+                                                width: `${progress}%`,
+                                                background: 'rgba(255,255,255,0.3)',
+                                                transition: 'width 0.3s'
+                                            }}
+                                        />
+                                        
+                                        {/* Текст */}
+                                        <div
+                                            style={{
+                                                position: 'relative',
+                                                padding: '0 12px',
+                                                height: '100%',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                fontSize: 11,
+                                                fontWeight: 500,
+                                                color: '#fff',
+                                                textShadow: '0 1px 1px rgba(0,0,0,0.2)',
+                                                whiteSpace: 'nowrap',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis'
                                             }}
                                         >
-                                            <div
-                                                style={{
-                                                    position: 'absolute',
-                                                    left: 0,
-                                                    top: 0,
-                                                    bottom: 0,
-                                                    width: `${progress}%`,
-                                                    background: 'rgba(255,255,255,0.25)'
-                                                }}
-                                            />
-                                            <div
-                                                style={{
-                                                    position: 'relative',
-                                                    padding: '0 10px',
-                                                    height: '100%',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    fontSize: 11,
-                                                    fontWeight: 500,
-                                                    color: '#fff',
-                                                    whiteSpace: 'nowrap'
-                                                }}
-                                            >
-                                                {getCourseName(group.courseId)} ({progress}%)
-                                            </div>
+                                            {courseName.length > 20 ? `${courseName.substring(0, 20)}...` : courseName} • {progress}%
                                         </div>
                                     </div>
                                 </div>
-                            )
-                        })}
-                    </div>
+                            </div>
+                        )
+                    })}
                 </div>
-            )}
+            </div>
 
             {/* Информационные карточки */}
             <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(3, 1fr)',
                 gap: '12px',
-                padding: '20px',
-                borderTop: '1px solid var(--border-subtle)'
+                padding: '16px 20px',
+                borderTop: '1px solid var(--border-subtle)',
+                background: 'rgba(0,0,0,0.2)'
             }}>
-                {[
-                    { label: 'Всего групп', value: groups.length },
-                    { label: 'Активных групп', value: groups.filter(g => g.status === 'active').length },
-                    { label: 'Всего курсов', value: courses.length }
-                ].map((item, i) => (
-                    <div key={i} style={{
-                        padding: '12px',
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        borderRadius: '8px',
-                        textAlign: 'center'
-                    }}>
-                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
-                            {item.label}
-                        </div>
-                        <div style={{ fontSize: 14, fontWeight: 600 }}>{item.value}</div>
+                <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Всего групп</div>
+                    <div style={{ fontSize: 20, fontWeight: 700 }}>{groups.length}</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Активных групп</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: '#34d399' }}>
+                        {groups.filter(g => g.status === 'active').length}
                     </div>
-                ))}
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Всего курсов</div>
+                    <div style={{ fontSize: 20, fontWeight: 700 }}>{courses.length}</div>
+                </div>
             </div>
         </div>
     )
