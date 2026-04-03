@@ -1,9 +1,13 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar.jsx'
 
 export default function Layout() {
     const [sidebarWidth, setSidebarWidth] = useState(280)
+
+    const handleSidebarWidthChange = (width) => {
+        setSidebarWidth(width)
+    }
 
     return (
         <div style={{
@@ -12,16 +16,15 @@ export default function Layout() {
             position: 'relative',
             zIndex: 1,
         }}>
-            <Sidebar onWidthChange={setSidebarWidth} />
+            <Sidebar onWidthChange={handleSidebarWidthChange} />
             <main style={{
                 flex: 1,
-                marginLeft: `${sidebarWidth}px`,
                 overflowY: 'auto',
                 overflowX: 'hidden',
                 padding: '28px 32px',
                 position: 'relative',
-                transition: 'margin-left 0.3s ease',
-            }} className="main-content-transition">
+                marginLeft: `${sidebarWidth}px`,
+            }}>
                 <Outlet />
             </main>
         </div>

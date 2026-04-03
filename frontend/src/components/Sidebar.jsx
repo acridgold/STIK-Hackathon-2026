@@ -160,7 +160,14 @@ export default function Sidebar({ onWidthChange }) {
                                     }
                                 }}
                             >
-                                <item.icon size={isCollapsed ? 9 : 18} />
+                                <item.icon 
+                                    size={18} 
+                                    style={{ 
+                                        flexShrink: 0,
+                                        width: '18px',
+                                        height: '18px'
+                                    }} 
+                                />
                                 {!isCollapsed && (
                                     <span style={{
                                         opacity: isCollapsed ? 0 : 1,
