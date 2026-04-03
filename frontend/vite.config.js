@@ -8,4 +8,5 @@ export default defineConfig({
             '@': '/src',
         },
     },
+    base: '/STIK-Hackathon-2026/',
 })

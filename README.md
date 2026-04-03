@@ -27,16 +27,17 @@ npm run deploy
 
 **Для публикации на GitHub Pages:**
 
-Вариант 1 (автоматический деплой):
-```bash
-npm run deploy
-# или с кастомным сообщением коммита:
-npm run deploy:gh-pages
-```
+1. **Добавить Deploy Key:**
+   - Перейти в Settings репозитория → Deploy Keys
+   - Нажать "Add deploy key"
+   - Вставить ваш публичный SSH ключ (из `~/.ssh/id_rsa.pub`)
+   - Поставить галочку "Allow write access"
+   - Сохранить
 
-Вариант 2 (ручной деплой):
-1. Запустить `npm run build`
-2. Загрузить содержимое папки `dist/` на GitHub Pages
+2. **Развернуть:**
+   ```bash
+   npm run deploy
+   ```
 
 После деплоя приложение доступно по адресу:
 ```
