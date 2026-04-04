@@ -3,6 +3,9 @@
    DM Sans + Syne · Liquid Glass · Dark Space
    ============================================================ */
 
+// 1. Подключаем встроенный модуль для работы с цветами
+@use "sass:color";
+
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Syne:wght@400;500;600;700;800&display=swap');
 
 // ============================================================
@@ -71,7 +74,6 @@ $breakpoint-lg: 1024px;
   --accent-c: #{$accent-c};
   --accent-d: #{$accent-d};
 
-  // Legacy aliases — чтобы старые компоненты не сломались
   --text-primary:   #{$text-0};
   --text-secondary: #{$text-1};
   --text-tertiary:  #{$text-2};
@@ -118,7 +120,6 @@ $breakpoint-lg: 1024px;
   --shadow-md: 0 4px 16px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3);
   --shadow-lg: 0 8px 32px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4);
 
-  // Status
   --status-planned:    #{$accent-a};
   --status-planned-bg: rgba(107,123,255,0.10);
   --status-active:     #{$accent-b};
@@ -427,10 +428,11 @@ body::after {
   &-primary {
     background: $accent-a;
     color: #fff;
-    box-shadow: 0 4px 20px rgba(107,123,255,0.3);
+    box-shadow: 0 4px 20px rgba(107,123,255,0.35);
 
     &:hover:not(:disabled) {
-      background: darken($accent-a, 8%);
+      // 2. ИСПРАВЛЕНИЕ: Используем color.adjust для затемнения
+      background: color.adjust($accent-a, $lightness: -8%);
       box-shadow: 0 6px 28px rgba(107,123,255,0.55);
       transform: translateY(-1px);
     }
@@ -969,13 +971,13 @@ tbody td {
 
 .text-primary   { color: $text-0; }
 .text-secondary, .text-muted { color: $text-1; }
-.text-dim       { color: $text-2; }
-.text-accent    { color: $accent-a; }
-.text-green     { color: $accent-b; }
-.text-amber     { color: $accent-c; }
-.text-red       { color: $accent-d; }
+.text-dim        { color: $text-2; }
+.text-accent     { color: $accent-a; }
+.text-green      { color: $accent-b; }
+.text-amber      { color: $accent-c; }
+.text-red        { color: $accent-d; }
 
-.flex       { display: flex; }
+.flex        { display: flex; }
 .flex-col   { flex-direction: column; }
 .items-center    { align-items: center; }
 .justify-between { justify-content: space-between; }
@@ -992,7 +994,7 @@ tbody td {
 .mt-auto { margin-top: auto; }
 .ml-auto { margin-left: auto; }
 
-.hidden       { display: none; }
+.hidden        { display: none; }
 .hide-on-mobile { @include media($breakpoint-md) { display: none; } }
 
 .cursor-pointer { cursor: pointer; }
