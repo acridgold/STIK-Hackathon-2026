@@ -37,8 +37,6 @@ function seedData() {
             name: 'Основы работы в Global ERP',
             description: 'Базовый курс по работе с модулями ERP системы',
             durationDays: 5,
-            // История цен: массив { price, validFrom }
-            // При расчёте используется цена, актуальная на дату начала группы
             priceHistory: [
                 { price: 15000, validFrom: '2024-01-01' },
                 { price: 18000, validFrom: '2025-06-01' },
@@ -136,10 +134,6 @@ function seedData() {
 }
 
 // ─── PRICE HELPERS ──────────────────────────────────────────────────────────
-/**
- * Возвращает цену курса на заданную дату (history-aware).
- * Находим последнюю запись в priceHistory, где validFrom <= targetDate.
- */
 export function getPriceOnDate(course, targetDate) {
     if (!course) return 0
     const date = targetDate || today()
@@ -153,16 +147,11 @@ export function getPriceOnDate(course, targetDate) {
     return price
 }
 
-/** Текущая (актуальная) цена курса */
 export function getCurrentPrice(course) {
     return getPriceOnDate(course, today())
 }
 
 // ─── DERIVED CALCULATORS ────────────────────────────────────────────────────
-/**
- * Рассчитывает стоимость группы.
- * Используется цена курса на дату начала группы (freeze price).
- */
 export function calcGroupCost(group, course) {
     if (!group || !course) return 0
     const pricePerPerson = getPriceOnDate(course, group.startDate)
@@ -170,22 +159,12 @@ export function calcGroupCost(group, course) {
     return pricePerPerson * count
 }
 
-/**
- * Рассчитывает средний прогресс по группе.
- * Среднее арифметическое от progress всех участников.
- */
 export function calcGroupProgress(group) {
     if (!group || group.participants.length === 0) return 0
     const sum = group.participants.reduce((acc, p) => acc + (p.progress || 0), 0)
     return Math.round(sum / group.participants.length)
 }
 
-/**
- * Рассчитывает итоги спецификации.
- * subtotal = сумма стоимостей групп
- * vat = subtotal * VAT_RATE
- * total = subtotal + vat
- */
 export function calcSpecTotals(spec, groups, courses) {
     const specGroups = groups.filter(g => spec.groupIds.includes(g.id))
     const subtotal = specGroups.reduce((acc, g) => {
@@ -234,7 +213,6 @@ export const useStore = create(
             updateCourse: (id, data) => set(s => ({
                 courses: s.courses.map(c => {
                     if (c.id !== id) return c
-                    // Если цена изменилась — добавляем запись в историю
                     if (data.price !== undefined) {
                         const current = getCurrentPrice(c)
                         const newPrice = Number(data.price)
@@ -262,7 +240,6 @@ export const useStore = create(
             })),
             deleteEmployee: (id) => set(s => ({
                 employees: s.employees.filter(e => e.id !== id),
-                // Удаляем участника из всех групп
                 groups: s.groups.map(g => ({
                     ...g,
                     participants: g.participants.filter(p => p.employeeId !== id)
@@ -286,18 +263,16 @@ export const useStore = create(
             })),
             deleteGroup: (id) => set(s => ({
                 groups: s.groups.filter(g => g.id !== id),
-                // Убираем группу из спецификаций
                 specifications: s.specifications.map(sp => ({
                     ...sp,
                     groupIds: sp.groupIds.filter(gid => gid !== id)
                 }))
             })),
 
-            // ── Participants (внутри группы) ──
+            // ── Participants ──
             addParticipant: (groupId, employeeId) => set(s => ({
                 groups: s.groups.map(g => {
                     if (g.id !== groupId) return g
-                    // Проверка дубликата
                     if (g.participants.some(p => p.employeeId === employeeId)) return g
                     return {
                         ...g,
@@ -342,7 +317,6 @@ export const useStore = create(
                         companyId: data.companyId,
                         groupIds,
                     }],
-                    // Обновляем ссылку specId у привязанных групп
                     groups: s.groups.map(g =>
                         groupIds.includes(g.id) ? { ...g, specId } : g
                     )
@@ -368,8 +342,7 @@ export const useStore = create(
                 groups: s.groups.map(g => g.specId === id ? { ...g, specId: null } : g)
             })),
 
-            // ── XML Import ──
-            // Парсит XML из Global ERP и импортирует сотрудников и курсы
+            // ── XML IMPORT ──
             importFromXML: (xmlString) => {
                 try {
                     const parser = new DOMParser()
@@ -377,7 +350,7 @@ export const useStore = create(
                     const parseError = doc.querySelector('parsererror')
                     if (parseError) throw new Error('Ошибка парсинга XML')
 
-                    const imported = { employees: 0, courses: 0, companies: 0 }
+                    const imported = { employees: 0, courses: 0, companies: 0, groups: 0 }
 
                     // Импорт компаний
                     doc.querySelectorAll('Company').forEach(node => {
@@ -392,13 +365,13 @@ export const useStore = create(
                         })
                     })
 
-                    // Импорт курсов
-                    doc.querySelectorAll('Course').forEach(node => {
-                        const id = node.getAttribute('id') || uid()
-                        const name = node.querySelector('Name')?.textContent?.trim() || ''
-                        const description = node.querySelector('Description')?.textContent?.trim() || ''
-                        const durationDays = Number(node.querySelector('Duration')?.textContent) || 1
-                        const price = Number(node.querySelector('Price')?.textContent) || 0
+                    // Импорт курсов (формат Edu_Course)
+                    doc.querySelectorAll('Edu_Course').forEach(node => {
+                        const id = node.querySelector('id')?.textContent?.trim() || uid()
+                        const name = node.querySelector('sCourseHL')?.textContent?.trim() || ''
+                        const description = node.querySelector('sDescription')?.textContent?.trim() || ''
+                        const durationDays = Number(node.querySelector('nDurationInDays')?.textContent) || 1
+                        const price = Number(node.querySelector('nPricePerPerson')?.textContent) || 0
                         if (!name) return
                         set(s => {
                             if (s.courses.some(c => c.id === id)) return s
@@ -412,22 +385,84 @@ export const useStore = create(
                         })
                     })
 
-                    // Импорт сотрудников
-                    doc.querySelectorAll('Employee').forEach(node => {
-                        const id = node.getAttribute('id') || uid()
-                        const fullName = node.querySelector('FullName')?.textContent?.trim() || ''
-                        const companyId = node.querySelector('CompanyID')?.textContent?.trim() || ''
-                        const email = node.querySelector('Email')?.textContent?.trim() || ''
+                    // Импорт сотрудников (формат Edu_Participant)
+                    doc.querySelectorAll('Edu_Participant').forEach(node => {
+                        const id = node.querySelector('id')?.textContent?.trim() || uid()
+                        const fullName = node.querySelector('sFIO')?.textContent?.trim() || ''
+                        const companyName = node.querySelector('idOrganizationHL')?.textContent?.trim() || ''
+                        const companyId = node.querySelector('idOrganization')?.textContent?.trim() || ''
+                        
                         if (!fullName) return
+                        
                         set(s => {
                             if (s.employees.some(e => e.id === id)) return s
+                            
+                            // Если компании нет — создаём
+                            if (companyId && !s.companies.some(c => c.id === companyId)) {
+                                imported.companies++
+                                s.companies = [...s.companies, {
+                                    id: companyId,
+                                    code: companyId.slice(-4),
+                                    name: companyName || `Компания ${companyId}`
+                                }]
+                            }
+                            
                             imported.employees++
-                            return { employees: [...s.employees, { id, fullName, companyId, email }] }
+                            return {
+                                employees: [...s.employees, {
+                                    id,
+                                    fullName,
+                                    companyId: companyId || null,
+                                    email: ''
+                                }]
+                            }
+                        })
+                    })
+
+                    // Импорт учебных групп для диаграммы Ганта
+                    doc.querySelectorAll('TrainingGroup').forEach(node => {
+                        const id = node.getAttribute('id') || uid()
+                        const courseId = node.querySelector('CourseID')?.textContent?.trim() || ''
+                        const startDate = node.querySelector('StartDate')?.textContent?.trim() || ''
+                        const endDate = node.querySelector('EndDate')?.textContent?.trim() || ''
+                        const status = node.querySelector('Status')?.textContent?.trim() || 'planned'
+                        
+                        if (!courseId || !startDate || !endDate) return
+                        
+                        const participants = []
+                        node.querySelectorAll('Participant').forEach(pNode => {
+                            const employeeId = pNode.querySelector('EmployeeID')?.textContent?.trim() || ''
+                            const progress = Number(pNode.querySelector('Progress')?.textContent) || 0
+                            if (employeeId) {
+                                participants.push({
+                                    id: uid(),
+                                    groupId: id,
+                                    employeeId,
+                                    progress: Math.min(100, Math.max(0, progress))
+                                })
+                            }
+                        })
+                        
+                        set(s => {
+                            if (s.groups.some(g => g.id === id)) return s
+                            imported.groups++
+                            return {
+                                groups: [...s.groups, {
+                                    id,
+                                    courseId,
+                                    startDate,
+                                    endDate,
+                                    status,
+                                    specId: null,
+                                    participants
+                                }]
+                            }
                         })
                     })
 
                     return { success: true, imported }
                 } catch (err) {
+                    console.error('XML Import error:', err)
                     return { success: false, error: err.message }
                 }
             },
