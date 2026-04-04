@@ -96,10 +96,10 @@ ehthumbs.db
 Thumbs.db
 
 # ====================== Frontend (если будет в этом же репозитории) ======================
-# node_modules/
-# .env
-# dist/
-# build/
+node_modules/
+.env
+dist/
+build/
 
 # ====================== Дополнительно ======================
 .env
