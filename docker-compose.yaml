@@ -1,0 +1,18 @@
+services:
+  db:
+    image: mirror.gcr.io/library/postgres:15-alpine
+    container_name: erp_db_container
+    environment:
+      - POSTGRES_DB=global_erp_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      # Путь слева — это место, где лежит твой файл на Fedora
+      # Путь справа — стандартная папка PostgreSQL для авто-инициализации
+      - ./create_global_erp.sql:/docker-entrypoint-initdb.d/create_global_erp.sql
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  postgres_data:
