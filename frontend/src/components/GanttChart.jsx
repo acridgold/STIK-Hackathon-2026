@@ -484,7 +484,7 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
                 </div>
             </div>
 
-            {/* Информационные карточки */}
+            {/*Информационные карточки */}
             <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(3, 1fr)',
