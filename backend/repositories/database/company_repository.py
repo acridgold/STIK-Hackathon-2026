@@ -47,4 +47,5 @@ class CompanyRepository(CompanyRepositoryInterface):
                 )
                 return cur.rowcount > 0
 
+
 company_repository: CompanyRepositoryInterface = CompanyRepository()
