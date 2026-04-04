@@ -1,25 +1,20 @@
-# ==================== Основной Django стек ====================
-Django==4.2.16                  # стабильная LTS-версия
-
-# ==================== Django REST Framework ====================
-djangorestframework==3.15.2
-django-filter==24.3
-
-# ==================== База данных ====================
-psycopg2-binary==2.9.10         # для PostgreSQL
-
-# ==================== Полезные пакеты ====================
-python-dotenv==1.0.1            # работа с .env файлами
-django-cors-headers==4.5.0      # для фронтенда на React (CORS)
-
-# ==================== Документация API (очень рекомендуется) ====================
-drf-spectacular==0.27.2         # автоматический Swagger + Redoc
-
-# ==================== Для разработки ====================
-django-debug-toolbar==4.4.6     # удобная панель отладки
-whitenoise==6.7.0               # для статики (если будет продакшн)
-
-# ==================== Опционально, но полезно ====================
-# djangorestframework-simplejwt==5.3.1     # если захочешь JWT-авторизацию
-# celery==5.4.0                             # для асинхронной XML-интеграции
-# redis==5.2.0                              # если будет Celery
+annotated-types==0.7.0
+backports-datetime-fromisoformat==2.0.3
+blinker==1.9.0
+click==8.1.8
+Flask==3.1.3
+flask-cors==6.0.2
+gunicorn==23.0.0
+importlib_metadata==8.7.1
+itsdangerous==2.2.0
+Jinja2==3.1.6
+MarkupSafe==3.0.3
+marshmallow==4.0.1
+packaging==26.0
+pi==0.1.2
+pydantic==2.12.5
+pydantic_core==2.41.5
+typing-inspection==0.4.2
+typing_extensions==4.15.0
+Werkzeug==3.1.8
+zipp==3.23.0
