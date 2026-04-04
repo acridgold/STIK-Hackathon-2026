@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
-import { Calendar, AlertCircle, Download, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Calendar, AlertCircle, Download, Upload } from 'lucide-react'
+import { useStore } from '../store/useStore.js'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 
@@ -171,7 +172,20 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
             }
         }
     }, [allDates, columnWidth])
-
+       const handleXMLUpload = async (event) => {
+    const file = event.target.files[0]
+    if (!file) return
+    
+    const text = await file.text()
+    const result = useStore.getState().importFromXML(text)
+    
+    if (result.success) {
+        alert(`✅ Импорт завершён!\nГрупп: ${result.imported.groups}\nКурсов: ${result.imported.courses}\nСотрудников: ${result.imported.employees}\nКомпаний: ${result.imported.companies}`)
+        window.location.reload()
+    } else {
+        alert(`❌ Ошибка импорта: ${result.error}`)
+    }
+}
     if (!groups.length) {
         return (
             <div className="glass-card" style={{ padding: '60px 20px', textAlign: 'center' }}>
@@ -212,6 +226,32 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
                 </div>
                 
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <input
+        type="file"
+        accept=".xml"
+        id="xml-upload"
+        style={{ display: 'none' }}
+        onChange={handleXMLUpload}
+    />
+    <button
+        onClick={() => document.getElementById('xml-upload').click()}
+        style={{
+            padding: '6px 14px',
+            fontSize: 12,
+            fontWeight: 500,
+            background: 'rgba(77, 166, 255, 0.2)',
+            color: 'var(--accent-blue)',
+            border: '1px solid rgba(77, 166, 255, 0.3)',
+            borderRadius: '30px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+        }}
+    >
+        <Upload size={14} />
+        Загрузить XML
+    </button>
                     <button
                         onClick={exportToPDF}
                         style={{
