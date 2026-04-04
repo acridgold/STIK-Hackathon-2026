@@ -21,7 +21,8 @@ jobs:
           cd backend
           # Add your test commands here, e.g., python -m pytest
       - name: Deploy to Railway
-        uses: railwayapp/actions@v1
-        with:
-          railway_token: ${{ secrets.RAILWAY_TOKEN }}
-          service: backend  # Adjust if your service name differs
+        run: |
+          npm install -g @railway/cli
+          railway up --service backend --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
