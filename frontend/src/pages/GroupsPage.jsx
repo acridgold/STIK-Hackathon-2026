@@ -1,7 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, AlertTriangle, ChevronRight } from 'lucide-react'
-import { useStore, calcGroupProgress, calcGroupCost, getPriceOnDate } from '../store/useStore.js'
+import { useStore, calcGroupProgress, calcGroupCost } from '../store/useStore.js'
 import PageHeader from '../components/ui/PageHeader.jsx'
 import StatusBadge, { STATUS_OPTIONS } from '../components/ui/StatusBadge.jsx'
 import GroupModal from '../components/ui/GroupModal.jsx'
@@ -12,10 +12,20 @@ const fmt = (n) => new Intl.NumberFormat('ru-RU').format(Math.round(n))
 export default function GroupsPage() {
     const navigate = useNavigate()
     const toast = useToast()
-    const { groups, courses, employees } = useStore()
+    const { groups, courses } = useStore()
     const [search, setSearch] = useState('')
     const [statusFilter, setStatusFilter] = useState('all')
     const [showModal, setShowModal] = useState(false)
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
+
+    useEffect(() => {
+        const handleResize = () => {
+            setIsMobile(window.innerWidth <= 768)
+        }
+
+        window.addEventListener('resize', handleResize)
+        return () => window.removeEventListener('resize', handleResize)
+    }, [])
 
     // Конфликты
     const byCourseDateStart = {}
@@ -49,21 +59,27 @@ export default function GroupsPage() {
             />
 
             {/* Filters */}
-            <div style={{ display: 'flex', gap: 10, marginBottom: 20, alignItems: 'center' }}>
-                <div style={{ position: 'relative', flex: 1, maxWidth: 300 }}>
+            <div style={{ 
+                display: 'flex', 
+                gap: isMobile ? 8 : 10, 
+                marginBottom: 20, 
+                alignItems: 'center',
+                flexWrap: 'wrap',
+            }}>
+                <div style={{ position: 'relative', flex: isMobile ? '1 1 auto' : '1', maxWidth: isMobile ? '100%' : 300 }}>
                     <Search size={13} style={{
                         position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)',
                         color: 'var(--text-tertiary)',
                     }} />
                     <input
                         className="input"
-                        style={{ paddingLeft: 30 }}
-                        placeholder="Поиск по курсу..."
+                        style={{ paddingLeft: 30, minWidth: isMobile ? '100%' : 'auto' }}
+                        placeholder={isMobile ? "Поиск..." : "Поиск по курсу..."}
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                     />
                 </div>
-                <div className="pill-tabs">
+                <div className="pill-tabs" style={{ overflowX: isMobile ? 'auto' : 'visible', flexWrap: isMobile ? 'nowrap' : 'wrap' }}>
                     <button
                         className={`pill-tab ${statusFilter === 'all' ? 'active' : ''}`}
                         onClick={() => setStatusFilter('all')}
@@ -76,7 +92,7 @@ export default function GroupsPage() {
                             className={`pill-tab ${statusFilter === o.value ? 'active' : ''}`}
                             onClick={() => setStatusFilter(o.value)}
                         >
-                            {o.label}
+                            {isMobile ? o.label.slice(0, 3) : o.label}
                         </button>
                     ))}
                 </div>
@@ -89,12 +105,12 @@ export default function GroupsPage() {
                         <thead>
                         <tr>
                             <th>Курс</th>
-                            <th>Период</th>
+                            <th className="hide-on-mobile">Период</th>
                             <th style={{ textAlign: 'center' }}>Участников</th>
-                            <th>Прогресс</th>
-                            <th style={{ textAlign: 'right' }}>Стоимость</th>
+                            <th className="hide-on-mobile">Прогресс</th>
+                            <th className="hide-on-mobile" style={{ textAlign: 'right' }}>Стоимость</th>
                             <th>Статус</th>
-                            <th>Спецификация</th>
+                            <th className="hide-on-mobile">Спецификация</th>
                             <th></th>
                         </tr>
                         </thead>
@@ -115,7 +131,7 @@ export default function GroupsPage() {
                                     }}
                                 >
                                     <td>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                             {isConflict && (
                                                 <div className="tooltip-wrapper">
                                                     <AlertTriangle size={13} color="var(--accent-amber)" />
@@ -125,7 +141,7 @@ export default function GroupsPage() {
                                             <span style={{ fontWeight: 500 }}>{course?.name || '—'}</span>
                                         </div>
                                     </td>
-                                    <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
+                                    <td className="hide-on-mobile" style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
                                         {g.startDate} — {g.endDate}
                                     </td>
                                     <td style={{ textAlign: 'center' }}>
@@ -137,7 +153,7 @@ export default function GroupsPage() {
                         {g.participants.length}
                       </span>
                                     </td>
-                                    <td>
+                                    <td className="hide-on-mobile">
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 100 }}>
                                             <div className="progress-bar" style={{ flex: 1 }}>
                                                 <div className="progress-bar-fill" style={{ width: `${progress}%` }} />
@@ -147,11 +163,11 @@ export default function GroupsPage() {
                         </span>
                                         </div>
                                     </td>
-                                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+                                    <td className="hide-on-mobile" style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
                                         {cost > 0 ? `${fmt(cost)} ₽` : '—'}
                                     </td>
                                     <td><StatusBadge status={g.status} /></td>
-                                    <td style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>
+                                    <td className="hide-on-mobile" style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>
                                         {g.specId ? `#${g.specId.slice(0, 6)}` : '—'}
                                     </td>
                                     <td>

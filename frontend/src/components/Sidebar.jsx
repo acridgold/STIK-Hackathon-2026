@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import {
     LayoutDashboard, BookOpen, Users, Settings,
     GraduationCap, Building2, ChevronLeft, ChevronRight
@@ -14,24 +14,49 @@ const navigation = [
     { name: 'Настройки', href: '/settings', icon: Settings },
 ]
 
-export default function Sidebar({ onWidthChange }) {
+export default function Sidebar({ onWidthChange, isMobile }) {
     const [isCollapsed, setIsCollapsed] = useState(false)
+    const location = useLocation()
 
     useEffect(() => {
-        onWidthChange?.(isCollapsed ? 72 : 280)
-    }, [isCollapsed, onWidthChange])
+        onWidthChange?.(isCollapsed || isMobile ? 60 : 280)
+    }, [isCollapsed, isMobile, onWidthChange])
+
+    useEffect(() => {
+        const handleResize = () => {
+            const mobile = window.innerWidth <= 768
+            // Automatically collapse on mobile
+            if (mobile) {
+                setIsCollapsed(true)
+            }
+        }
+
+        window.addEventListener('resize', handleResize)
+        return () => window.removeEventListener('resize', handleResize)
+    }, [])
+
+    // Initialize as collapsed on mobile
+    useEffect(() => {
+        if (isMobile) {
+            setIsCollapsed(true)
+        }
+    }, [isMobile])
 
     const handleToggle = () => {
-        setIsCollapsed(!isCollapsed)
+        if (!isMobile) {
+            setIsCollapsed(!isCollapsed)
+        }
     }
+
+    const shouldShow = !isCollapsed && !isMobile
 
     return (
         <aside style={{
-            width: isCollapsed ? '72px' : '280px',
+            width: (isCollapsed || isMobile) ? '60px' : '280px',
             background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
             backdropFilter: 'blur(20px)',
             borderRight: '1px solid rgba(255, 255, 255, 0.08)',
-            padding: '24px 0',
+            padding: isMobile ? '16px 0' : '24px 0',
             position: 'fixed',
             height: '100vh',
             left: 0,
@@ -42,16 +67,16 @@ export default function Sidebar({ onWidthChange }) {
         }} className="sidebar-transition">
             {/* Logo */}
             <div style={{
-                padding: '0 24px 32px',
+                padding: isMobile ? '0 12px 20px' : '0 24px 32px',
                 borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-                marginBottom: '24px',
+                marginBottom: isMobile ? '16px' : '24px',
                 position: 'relative',
             }}>
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '12px',
-                    opacity: isCollapsed ? 0 : 1,
+                    opacity: shouldShow ? 1 : 0,
                     transition: 'opacity 0.3s ease',
                 }}>
                     <div style={{
@@ -72,6 +97,7 @@ export default function Sidebar({ onWidthChange }) {
                     <div style={{
                         overflow: 'hidden',
                         whiteSpace: 'nowrap',
+                        className: 'sidebar-logo-text',
                     }}>
                         <div style={{
                             fontSize: '16px',
@@ -91,63 +117,65 @@ export default function Sidebar({ onWidthChange }) {
                     </div>
                 </div>
 
-                {/* Collapse Button */}
-                <button
-                    onClick={handleToggle}
-                    style={{
-                        position: 'absolute',
-                        right: '12px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        width: '32px',
-                        height: '32px',
-                        background: 'rgba(255, 255, 255, 0.1)',
-                        border: '1px solid rgba(255, 255, 255, 0.2)',
-                        borderRadius: '8px',
-                        color: 'white',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        transition: 'all 0.2s ease',
-                        zIndex: 20,
-                    }}
-                    onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'
-                        e.currentTarget.style.borderColor = 'rgba(77, 166, 255, 0.4)'
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'
-                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)'
-                    }}
-                >
-                    {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-                </button>
+                {/* Collapse Button - hidden on mobile */}
+                {!isMobile && (
+                    <button
+                        onClick={handleToggle}
+                        style={{
+                            position: 'absolute',
+                            right: '12px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            width: '32px',
+                            height: '32px',
+                            background: 'rgba(255, 255, 255, 0.1)',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            borderRadius: '8px',
+                            color: 'white',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s ease',
+                            zIndex: 20,
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'
+                            e.currentTarget.style.borderColor = 'rgba(77, 166, 255, 0.4)'
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'
+                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)'
+                        }}
+                    >
+                        {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+                    </button>
+                )}
             </div>
 
             {/* Navigation */}
-            <nav style={{ padding: '0 16px' }}>
+            <nav style={{ padding: isMobile ? '0 8px' : '0 16px' }}>
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                     {navigation.map((item) => (
                         <li key={item.name} style={{ marginBottom: '4px' }}>
                             <NavLink
                                 to={item.href}
-                                title={isCollapsed ? item.name : ''}
+                                title={(isCollapsed || isMobile) ? item.name : ''}
                                 style={({ isActive }) => ({
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: '12px',
-                                    padding: '12px 16px',
+                                    padding: isMobile ? '10px 12px' : '12px 16px',
                                     borderRadius: '12px',
                                     textDecoration: 'none',
                                     color: isActive ? 'white' : 'rgba(255, 255, 255, 0.7)',
                                     background: isActive ? 'rgba(77, 166, 255, 0.2)' : 'transparent',
                                     border: isActive ? '1px solid rgba(77, 166, 255, 0.3)' : '1px solid transparent',
                                     transition: 'all 0.2s ease',
-                                    fontSize: '14px',
+                                    fontSize: isMobile ? '12px' : '14px',
                                     fontWeight: '500',
-                                    justifyContent: isCollapsed ? 'center' : 'flex-start',
-                                    minWidth: isCollapsed ? '40px' : 'auto',
+                                    justifyContent: (isCollapsed || isMobile) ? 'center' : 'flex-start',
+                                    minWidth: (isCollapsed || isMobile) ? '36px' : 'auto',
                                 })}
                                 onMouseEnter={(e) => {
                                     if (!e.currentTarget.classList.contains('active')) {
@@ -168,12 +196,13 @@ export default function Sidebar({ onWidthChange }) {
                                         height: '18px'
                                     }} 
                                 />
-                                {!isCollapsed && (
+                                {shouldShow && (
                                     <span style={{
-                                        opacity: isCollapsed ? 0 : 1,
+                                        opacity: shouldShow ? 1 : 0,
                                         transition: 'opacity 0.3s ease',
                                         whiteSpace: 'nowrap',
                                         overflow: 'hidden',
+                                        className: 'nav-link-text',
                                     }}>
                                         {item.name}
                                     </span>
@@ -187,11 +216,12 @@ export default function Sidebar({ onWidthChange }) {
             {/* Footer */}
             <div style={{
                 position: 'absolute',
-                bottom: '24px',
-                left: '16px',
-                right: '16px',
-                opacity: isCollapsed ? 0 : 1,
+                bottom: isMobile ? '16px' : '24px',
+                left: isMobile ? '12px' : '16px',
+                right: isMobile ? '12px' : '16px',
+                opacity: shouldShow ? 1 : 0,
                 transition: 'opacity 0.3s ease',
+                pointerEvents: shouldShow ? 'auto' : 'none',
             }}>
                 <div style={{
                     padding: '16px',
@@ -214,3 +244,4 @@ export default function Sidebar({ onWidthChange }) {
         </aside>
     )
 }
+
