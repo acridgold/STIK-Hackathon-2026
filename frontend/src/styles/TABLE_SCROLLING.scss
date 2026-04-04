@@ -1,0 +1,238 @@
+// ============================================================
+// Table Scrolling Guide
+// Руководство по использованию горизонтального скролла
+// ============================================================
+
+/**
+ * Горизонтальный скролл на таблицах
+ *
+ * Используется когда таблица шире, чем контейнер
+ * Особенно полезно на мобильных устройствах
+ */
+
+// ============================================================
+// Основные классы
+// ============================================================
+
+.table-container {
+  overflow-x: auto;                 // Включить горизонтальный скролл
+  -webkit-overflow-scrolling: touch; // Инерционный скролл на iOS
+  scroll-behavior: smooth;          // Плавный скролл
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 100%;  // Важно! Предотвращает сжатие таблицы
+}
+
+// ============================================================
+// Использование в React
+// ============================================================
+
+/*
+JSX пример:
+
+<div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+  <div className="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Столбец 1</th>
+          <th>Столбец 2</th>
+          <th>Столбец 3</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Данные 1</td>
+          <td>Данные 2</td>
+          <td>Данные 3</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+*/
+
+// ============================================================
+// CSS для оптимизации скролла
+// ============================================================
+
+// Инерционный скролл на iOS (как в Safari)
+.table-container {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+// Скрытие столбцов на мобильных
+.hide-on-mobile {
+  display: none;
+
+  @media (min-width: 769px) {
+    display: table-cell;
+  }
+}
+
+// Sticky header (опционально)
+table thead {
+  position: sticky;
+  top: 0;
+  background: var(--bg-base);
+  z-index: 10;
+}
+
+// ============================================================
+// SCSS Миксины для таблиц
+// ============================================================
+
+@mixin table-responsive {
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+
+  table {
+    min-width: 100%;
+  }
+}
+
+@mixin hide-column-mobile {
+  @include media('md') {
+    display: none;
+  }
+}
+
+// ============================================================
+// Примеры разных типов таблиц
+// ============================================================
+
+// 1. Простая таблица
+.simple-table {
+  @include table-responsive;
+}
+
+// 2. Таблица с фиксированным заголовком
+.sticky-header-table {
+  @include table-responsive;
+
+  thead {
+    position: sticky;
+    top: 0;
+    background: var(--bg-base);
+    z-index: 10;
+  }
+}
+
+// 3. Таблица со скрытыми столбцами на мобильном
+.compact-table {
+  @include table-responsive;
+
+  th.hide-on-mobile,
+  td.hide-on-mobile {
+    @include hide-column-mobile;
+  }
+}
+
+// ============================================================
+// Настройка скорости скролла
+// ============================================================
+
+// Быстрый скролл с инерцией (iOS style)
+.table-container-fast {
+  -webkit-overflow-scrolling: touch;
+}
+
+// Гладкий скролл (не совместимо с touch-инерцией)
+.table-container-smooth {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: auto;
+}
+
+// ============================================================
+// Рекомендации
+// ============================================================
+
+/*
+✅ ДЕЛАЙТЕ:
+- Используйте -webkit-overflow-scrolling: touch на мобильных
+- Устанавливайте min-width на table для предотвращения сжатия
+- Оборачивайте table в контейнер с overflow-x: auto
+- Скрывайте не критичные столбцы на мобильных
+
+❌ НЕ ДЕЛАЙТЕ:
+- Не устанавливайте position: fixed на таблицу внутри скролл-контейнера
+- Не используйте display: block на table
+- Не забывайте про border-collapse: collapse
+- Не смешивайте scroll-behavior с инерционным скроллом на iOS
+*/
+
+// ============================================================
+// Проверка поддержки
+// ============================================================
+
+/*
+Горизонтальный скролл поддерживается всеми современными браузерами:
+- Chrome/Edge: ✅
+- Firefox: ✅
+- Safari: ✅ (с -webkit-overflow-scrolling: touch)
+- Mobile Safari (iOS): ✅ (с -webkit-overflow-scrolling: touch)
+- Chrome Mobile: ✅
+
+Инерционный скролл (-webkit-overflow-scrolling: touch):
+- iOS Safari: ✅
+- Chrome Mobile: ⚠️ (неофициально поддерживается)
+*/
+
+// ============================================================
+// Отладка скролла
+// ============================================================
+
+// Визуально показать область скролла при разработке
+.debug-scroll {
+  .table-container {
+    border: 2px solid red;
+    background: rgba(255, 0, 0, 0.05);
+  }
+}
+
+// ============================================================
+// Производительность
+// ============================================================
+
+/*
+Оптимизация производительности при скролле:
+
+1. Используйте contain: layout для table-container
+   - Изолирует отрисовку от остального документа
+
+2. Избегайте частых изменений DOM внутри table
+   - Используйте key в React для стабильности
+
+3. Используйте виртуализацию для больших таблиц (1000+ строк)
+   - Библиотека: react-window, react-virtualized
+
+4. Оптимизируйте CSS:
+   - Минимизируйте селекторы в tbody tr:hover
+   - Используйте transform вместо top/left
+*/
+
+// Оптимизированный контейнер
+.optimized-table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  contain: layout;  // Изолирует отрисовку
+
+  table {
+    min-width: 100%;
+    width: 100%;
+
+    tbody tr {
+      &:hover {
+        background: var(--glass-1);  // Не используйте box-shadow
+      }
+    }
+  }
+}
+

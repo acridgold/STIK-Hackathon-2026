@@ -97,6 +97,11 @@
     /* Layout */
     --sidebar-width: 240px;
     --topbar-height: 60px;
+
+    /* Mobile settings */
+    --is-mobile: 0;
+    --is-tablet: 0;
+    --is-desktop: 1;
 }
 
 html, body {
@@ -438,6 +443,21 @@ tbody td {
     animation: slideUp 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+@media (max-width: 768px) {
+    .modal-overlay {
+        padding: var(--space-2);
+        align-items: flex-end;
+    }
+
+    .modal {
+        max-width: 100%;
+        width: 100%;
+        max-height: 90vh;
+        border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+        animation: slideUp 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+}
+
 .modal-lg { max-width: 800px; }
 
 .modal-header {
@@ -734,3 +754,311 @@ input[type="number"]::-webkit-outer-spin-button {
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); }
 .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4); }
+
+/* ============================================================
+   RESPONSIVE DESIGN — Mobile First Approach
+   ============================================================ */
+
+/* Tablet devices (768px - 1024px) */
+@media (max-width: 1024px) {
+    :root {
+        --sidebar-width: 72px;
+        --space-6: 20px;
+        --space-8: 28px;
+    }
+
+    .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    .grid-3 { grid-template-columns: repeat(2, 1fr); }
+
+    .modal { max-width: 90vw; }
+}
+
+/* Mobile devices (320px - 768px) */
+@media (max-width: 768px) {
+    :root {
+        --sidebar-width: 60px;
+        --topbar-height: 50px;
+        --space-4: 14px;
+        --space-5: 16px;
+        --space-6: 18px;
+        --space-8: 24px;
+        --font-mono: 'DM Mono', 'SF Mono', monospace;
+    }
+
+    html, body {
+        font-size: 13px;
+    }
+
+    /* Sidebar collapse on mobile */
+    aside {
+        width: 60px !important;
+    }
+
+    /* Main content adjust */
+    main {
+        padding: 16px 12px !important;
+        margin-left: 60px !important;
+    }
+
+    /* Grid layouts */
+    .grid-4 { grid-template-columns: 1fr; }
+    .grid-3 { grid-template-columns: 1fr; }
+    .grid-2 { grid-template-columns: 1fr; }
+
+    /* Tables responsive */
+    .table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    table {
+        font-size: 12px;
+        min-width: 600px;
+    }
+
+    thead th {
+        padding: var(--space-2) var(--space-3);
+        font-size: 10px;
+    }
+
+    tbody td {
+        padding: var(--space-2) var(--space-3);
+    }
+
+    /* Modal adjustments */
+    .modal {
+        width: calc(100% - var(--space-4));
+        max-width: 100%;
+        max-height: 90vh;
+        margin: auto;
+    }
+
+    .modal-body {
+        padding: var(--space-4);
+    }
+
+    .modal-header, .modal-footer {
+        padding: var(--space-4);
+    }
+
+    /* Toast repositioning */
+    .toast-container {
+        bottom: var(--space-4);
+        right: var(--space-4);
+        left: var(--space-4);
+    }
+
+    .toast {
+        width: 100%;
+        min-width: unset;
+    }
+
+    /* Form elements */
+    .input {
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+
+    select.input {
+        padding-right: 24px;
+    }
+
+    /* Buttons */
+    .btn {
+        padding: var(--space-2) var(--space-3);
+        font-size: 12px;
+    }
+
+    .btn-sm {
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+
+    /* Cards */
+    .glass-card {
+        padding: var(--space-4) !important;
+    }
+
+    .stat-card {
+        padding: var(--space-4);
+    }
+
+    .stat-value {
+        font-size: 22px;
+    }
+
+    .stat-label {
+        font-size: 11px;
+    }
+
+    /* Page header */
+    h1 {
+        font-size: 20px;
+    }
+
+    h2 {
+        font-size: 18px;
+    }
+
+    /* Empty state */
+    .empty-state {
+        padding: var(--space-8) var(--space-4);
+    }
+
+    .empty-state-desc {
+        max-width: 100%;
+    }
+
+    /* Badges */
+    .badge {
+        padding: 2px 6px;
+        font-size: 10px;
+    }
+
+    /* Progress bar */
+    .progress-bar {
+        height: 3px;
+    }
+
+    /* Alert boxes */
+    .alert {
+        font-size: 11px;
+        padding: var(--space-2) var(--space-3);
+    }
+
+    /* Utility classes mobile adjustments */
+    .gap-1 { gap: var(--space-1); }
+    .gap-2 { gap: var(--space-2); }
+    .gap-3 { gap: var(--space-3); }
+    .gap-4 { gap: var(--space-4); }
+
+    /* Sidebar logo text hide */
+    .sidebar-logo-text {
+        display: none;
+    }
+
+    /* Navigation items text hide on mobile */
+    .nav-link-text {
+        display: none;
+    }
+
+    /* Gantt chart responsive */
+    .gantt-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .gantt-row {
+        min-width: 100%;
+    }
+}
+
+/* Extra small devices (320px - 480px) */
+@media (max-width: 480px) {
+    :root {
+        --space-3: 10px;
+        --space-4: 12px;
+        --space-5: 14px;
+        --space-6: 16px;
+    }
+
+    html, body {
+        font-size: 12px;
+    }
+
+    main {
+        padding: 12px 8px !important;
+        margin-left: 50px !important;
+    }
+
+    aside {
+        width: 50px !important;
+    }
+
+    .btn {
+        padding: 6px 10px;
+        font-size: 11px;
+    }
+
+    .stat-value {
+        font-size: 18px;
+    }
+
+    .modal {
+        width: calc(100% - var(--space-3));
+    }
+
+    table {
+        font-size: 11px;
+    }
+
+    thead th {
+        font-size: 9px;
+    }
+
+    .badge {
+        padding: 2px 4px;
+        font-size: 9px;
+    }
+
+    h1 {
+        font-size: 18px;
+    }
+
+    /* Hide less important columns in table */
+    .hide-on-mobile {
+        display: none;
+    }
+
+    /* Grid layouts for forms */
+    .grid-2 { grid-template-columns: 1fr; }
+
+    .input, textarea.input {
+        font-size: 16px;
+    }
+
+    /* Ensure buttons are touchable on mobile */
+    .btn {
+        min-height: 40px;
+        min-width: 40px;
+    }
+}
+
+/* Touch-friendly adjustments for all mobile devices */
+@media (hover: none) and (pointer: coarse) {
+    /* Disable hover effects on touch devices */
+    .btn:hover:not(:disabled) {
+        transform: none;
+    }
+
+    .stat-card:hover {
+        transform: none;
+    }
+
+    /* Increase tap targets */
+    .btn, button, a[role="button"] {
+        min-height: 44px;
+        padding: 10px 14px;
+    }
+
+    /* Add more padding to form inputs */
+    .input {
+        padding: 12px 10px;
+        min-height: 44px;
+    }
+
+    /* Larger clickable areas */
+    .pill-tab {
+        padding: 8px 16px;
+        min-height: 36px;
+    }
+
+    /* Optimize table for touch */
+    table tbody tr {
+        min-height: 48px;
+    }
+
+    table tbody td {
+        padding: 12px 10px;
+    }
+}
+

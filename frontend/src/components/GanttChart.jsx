@@ -6,7 +6,17 @@ import jsPDF from 'jspdf'
 
 export default function GanttChart({ groups = [], courses = [], onGroupClick }) {
     const [viewMode, setViewMode] = useState('month')
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
     const scrollRef = useRef(null)
+
+    useEffect(() => {
+        const handleResize = () => {
+            setIsMobile(window.innerWidth <= 768)
+        }
+
+        window.addEventListener('resize', handleResize)
+        return () => window.removeEventListener('resize', handleResize)
+    }, [])
 
     // Получение названия курса
     const getCourseName = (courseId) => {
@@ -198,26 +208,26 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
     }
 
     return (
-        <div id="gantt-container" className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div id="gantt-container" className="glass-card gantt-container" style={{ padding: 0, overflow: 'hidden' }}>
             {/* Header */}
             <div style={{
-                padding: '16px 20px',
+                padding: isMobile ? '12px 14px' : '16px 20px',
                 borderBottom: '1px solid var(--border-subtle)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 flexWrap: 'wrap',
-                gap: '12px'
+                gap: isMobile ? '8px' : '12px'
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Calendar size={18} color="var(--accent-blue)" />
-                    <span style={{ fontSize: 14, fontWeight: 600 }}>Диаграмма Ганта</span>
+                    <Calendar size={isMobile ? 16 : 18} color="var(--accent-blue)" />
+                    <span style={{ fontSize: isMobile ? 12 : 14, fontWeight: 600 }}>Диаграмма Ганта</span>
                     {groups.some(g => hasConflict(g, groups)) && (
                         <span style={{
-                            fontSize: 11,
+                            fontSize: 10,
                             background: 'rgba(239, 68, 68, 0.2)',
                             color: '#ef4444',
-                            padding: '2px 8px',
+                            padding: '2px 6px',
                             borderRadius: '20px'
                         }}>
                             ⚠️ Конфликты
@@ -225,7 +235,13 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
                     )}
                 </div>
                 
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ 
+                    display: 'flex', 
+                    gap: isMobile ? '6px' : '12px', 
+                    alignItems: 'center', 
+                    flexWrap: 'wrap',
+                    justifyContent: 'flex-end',
+                }}>
                         <input
         type="file"
         accept=".xml"
@@ -236,8 +252,8 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
     <button
         onClick={() => document.getElementById('xml-upload').click()}
         style={{
-            padding: '6px 14px',
-            fontSize: 12,
+            padding: isMobile ? '5px 10px' : '6px 14px',
+            fontSize: isMobile ? 10 : 12,
             fontWeight: 500,
             background: 'rgba(77, 166, 255, 0.2)',
             color: 'var(--accent-blue)',
@@ -246,17 +262,18 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: '6px'
+            gap: '4px',
+            whiteSpace: 'nowrap',
         }}
     >
-        <Upload size={14} />
-        Загрузить XML
+        <Upload size={isMobile ? 12 : 14} />
+        {!isMobile && 'Загрузить XML'}
     </button>
                     <button
                         onClick={exportToPDF}
                         style={{
-                            padding: '6px 14px',
-                            fontSize: 12,
+                            padding: isMobile ? '5px 10px' : '6px 14px',
+                            fontSize: isMobile ? 10 : 12,
                             fontWeight: 500,
                             background: 'rgba(77, 166, 255, 0.2)',
                             color: 'var(--accent-blue)',
@@ -265,30 +282,32 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '6px'
+                            gap: '4px',
+                            whiteSpace: 'nowrap',
                         }}
                     >
-                        <Download size={14} />
-                        Экспорт PDF
+                        <Download size={isMobile ? 12 : 14} />
+                        {!isMobile && 'Экспорт PDF'}
                     </button>
                     
-                    <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '40px' }}>
+                    <div style={{ display: 'flex', gap: isMobile ? '4px' : '8px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '40px' }}>
                         {['week', 'month', 'quarter'].map(mode => (
                             <button
                                 key={mode}
                                 onClick={() => setViewMode(mode)}
                                 style={{
-                                    padding: '4px 12px',
-                                    fontSize: 12,
+                                    padding: isMobile ? '3px 8px' : '4px 12px',
+                                    fontSize: isMobile ? 10 : 12,
                                     fontWeight: 500,
                                     background: viewMode === mode ? 'var(--accent-blue)' : 'transparent',
                                     color: viewMode === mode ? '#fff' : 'var(--text-secondary)',
                                     border: 'none',
                                     borderRadius: '30px',
-                                    cursor: 'pointer'
+                                    cursor: 'pointer',
+                                    whiteSpace: 'nowrap',
                                 }}
                             >
-                                {mode === 'week' ? 'Неделя' : mode === 'month' ? 'Месяц' : 'Квартал'}
+                                {mode === 'week' ? 'Неделя' : mode === 'month' ? 'Месяц' : 'Кв.'}
                             </button>
                         ))}
                     </div>
