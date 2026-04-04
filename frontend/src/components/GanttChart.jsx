@@ -3,6 +3,7 @@ import { Calendar, AlertCircle, Download, Upload, Edit2, Check, X } from 'lucide
 import { useStore } from '../store/useStore.js'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
+import { uploadXMLToBackend } from '../components/api/xmlService.js'
 
 export default function GanttChart({ groups = [], courses = [], onGroupClick }) {
     const [viewMode, setViewMode] = useState('month')
@@ -166,18 +167,30 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
         }
     }, [minDate, maxDate, pixelsPerDay])
 
-    const handleXMLUpload = async (event) => {
-        const file = event.target.files[0]
-        if (!file) return
-        const text = await file.text()
-        const result = useStore.getState().importFromXML(text)
-        if (result.success) {
-            alert(`✅ Импорт завершён!\nГрупп: ${result.imported.groups}\nКурсов: ${result.imported.courses}\nСотрудников: ${result.imported.employees}\nКомпаний: ${result.imported.companies}`)
-            window.location.reload()
-        } else {
-            alert(`❌ Ошибка импорта: ${result.error}`)
-        }
+
+const handleXMLUpload = async (event) => {
+    const file = event.target.files[0]
+    if (!file) return
+    
+    // Отправка на бэкэнд
+    const uploadResult = await uploadXMLToBackend(file, 'groups')
+    if (uploadResult.success) {
+        console.log('✅ XML отправлен на бэкэнд')
+    } else {
+        console.warn('⚠️ Бэкэнд не доступен:', uploadResult.error)
     }
+    
+    // Импорт в локальное хранилище
+    const text = await file.text()
+    const result = useStore.getState().importFromXML(text)
+    
+    if (result.success) {
+        alert(`✅ Импорт завершён!\nГрупп: ${result.imported.groups}\nКурсов: ${result.imported.courses}\nСотрудников: ${result.imported.employees}`)
+        window.location.reload()
+    } else {
+        alert(`❌ Ошибка импорта: ${result.error}`)
+    }
+}
 
     // 🔧 ФИКС: Drag-and-drop с учётом pixelsPerDay
     const handleDragStart = (e, group) => {
