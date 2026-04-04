@@ -8,7 +8,7 @@ from routes.groups import groups_bp
 from routes.specifications import specifications_bp
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=["https://acridgold.github.io"])
 
 app.json.ensure_ascii = False
 
