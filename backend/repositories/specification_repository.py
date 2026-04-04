@@ -1,10 +1,12 @@
 import uuid
 from typing import Dict, List, Optional
 
+from repositories.base import SpecificationRepositoryInterface
+
 VAT_RATE = 0.22  # 22%
 
 
-class DocumentRepository:
+class SpecificationRepository(SpecificationRepositoryInterface):
     def __init__(self):
         self.specifications: Dict[str, Dict] = {}
 
@@ -73,4 +75,4 @@ class DocumentRepository:
 
 
 # Singleton
-document_repository: DocumentRepositoryInterface = DocumentRepository()
+specification_repository: SpecificationRepositoryInterface = SpecificationRepository()
