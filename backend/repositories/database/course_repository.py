@@ -77,3 +77,5 @@ class CourseRepository(CourseRepositoryInterface):
                     (course_id,),
                 )
                 return [dict(row) for row in cur.fetchall()]
+
+course_repository: CourseRepositoryInterface = CourseRepository()

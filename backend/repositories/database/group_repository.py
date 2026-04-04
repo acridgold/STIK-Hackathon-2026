@@ -77,3 +77,7 @@ class GroupRepository(GroupRepositoryInterface):
                     "DELETE FROM study_groups WHERE group_id = %s;", (group_id,)
                 )
                 return cur.rowcount > 0
+
+
+
+group_repository: GroupRepositoryInterface = GroupRepository()

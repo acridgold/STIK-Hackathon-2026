@@ -68,3 +68,5 @@ class SpecificationRepository(SpecificationRepositoryInterface):
                     "DELETE FROM specifications WHERE document_id = %s;", (spec_id,)
                 )
                 return cur.rowcount > 0
+
+specification_repository: SpecificationRepositoryInterface = SpecificationRepository()

@@ -102,3 +102,5 @@ class ParticipantRepository(ParticipantRepositoryInterface):
                 )
                 row = cur.fetchone()
                 return dict(row) if row else None
+
+participant_repository: ParticipantRepositoryInterface = ParticipantRepository()

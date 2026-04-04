@@ -46,3 +46,5 @@ class CompanyRepository(CompanyRepositoryInterface):
                     "DELETE FROM companies WHERE company_id = %s;", (company_id,)
                 )
                 return cur.rowcount > 0
+
+company_repository: CompanyRepositoryInterface = CompanyRepository()

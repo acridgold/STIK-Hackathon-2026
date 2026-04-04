@@ -2,18 +2,18 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 
 class CourseCreate(BaseModel):
-    title: str
+    course_name: str
     description: Optional[str] = None
-    duration: int = Field(..., gt=0)
-    price: int = Field(..., gt=0)
+    duration_days: int = Field(..., gt=0)
+    price_per_person: float = Field(..., gt=0)
 
     model_config = ConfigDict(extra="forbid")
 
 
 class CourseUpdate(BaseModel):
-    title: Optional[str] = None
+    course_name: Optional[str] = None
     description: Optional[str] = None
-    duration: Optional[int] = Field(None, gt=0)
-    price: Optional[int] = Field(None, gt=0)
+    duration_days: Optional[int] = Field(None, gt=0)
+    price_per_person: Optional[float] = Field(None, gt=0)
 
     model_config = ConfigDict(extra="forbid")

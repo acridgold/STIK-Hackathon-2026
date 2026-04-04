@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from repositories.plug.course_repository import course_repository
+from repositories.database.course_repository import course_repository
 from schemas.course_schema import CourseCreate, CourseUpdate
 from pydantic import ValidationError
 
@@ -12,6 +12,12 @@ def get_courses():
     courses = course_repository.get_all()
     return jsonify(courses)
 
+@courses_bp.route("/<course_id>", methods=["GET"])
+def get_course(course_id: str):
+    course = course_repository.get_by_id(course_id)
+    if not course:
+        return jsonify({"message": "Course not found"}), 404
+    return jsonify(course)
 
 @courses_bp.route("", methods=["POST"])
 def create_course():

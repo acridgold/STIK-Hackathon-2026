@@ -53,3 +53,18 @@ class EmployeeRepository(EmployeeRepositoryInterface):
                     "DELETE FROM employees WHERE employee_id = %s;", (employee_id,)
                 )
                 return cur.rowcount > 0
+
+    def find_similar(self, full_name: str, company_id: int) -> List[Dict]:
+        """Ищет сотрудников с тем же именем в той же компании."""
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT * FROM employees
+                    WHERE full_name = %s AND company_id = %s;
+                    """,
+                    (full_name, company_id),
+                )
+                return [dict(row) for row in cur.fetchall()]
+
+employee_repository: EmployeeRepositoryInterface = EmployeeRepository()
