@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from repositories.course_repository import course_repository
+from repositories.plug.course_repository import course_repository
 from schemas.course_schema import CourseCreate, CourseUpdate
 from pydantic import ValidationError
 

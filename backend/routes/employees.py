@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from repositories.employee_repository import employee_repository
+from repositories.plug.employee_repository import employee_repository
 from schemas.employee_schema import EmployeeCreate, EmployeeUpdate
 from pydantic import ValidationError
 

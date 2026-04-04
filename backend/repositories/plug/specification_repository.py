@@ -16,7 +16,7 @@ class SpecificationRepository(SpecificationRepositoryInterface):
         Импорт group_repository делается внутри метода, чтобы избежать
         циклических импортов (group_repository импортирует course_repository).
         """
-        from repositories.group_repository import group_repository
+        from repositories.plug.group_repository import group_repository
 
         group_ids: List[str] = spec.get("group_ids", [])
         subtotal = 0.0

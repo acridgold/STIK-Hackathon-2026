@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from repositories.company_repository import company_repository
+from repositories.database.company_repository import company_repository
 from schemas.company_schema import CompanyCreate, CompanyUpdate
 from pydantic import ValidationError
 

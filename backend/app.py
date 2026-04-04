@@ -19,7 +19,6 @@ app.register_blueprint(employees_bp,      url_prefix="/api/employees")
 app.register_blueprint(groups_bp,         url_prefix="/api/groups")
 app.register_blueprint(specifications_bp, url_prefix="/api/specifications")
 
-
 @app.before_request
 def log_request():
     print(f"{request.method} {request.path}")

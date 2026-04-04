@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from repositories.group_repository import group_repository
+from repositories.plug.group_repository import group_repository
 from schemas.group_schema import (
     GroupCreate, GroupUpdate,
     ParticipantAdd, ParticipantProgressUpdate,
