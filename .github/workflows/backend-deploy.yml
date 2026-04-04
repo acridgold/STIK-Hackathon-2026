@@ -25,4 +25,4 @@ jobs:
           npm install -g @railway/cli
           railway up --service backend --detach
         env:
-          RAILWAY_TOKEN: ${{ secrets.BACKEND_DEPLOY_KEY }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
