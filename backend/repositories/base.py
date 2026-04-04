@@ -89,18 +89,45 @@ class GroupRepositoryInterface(ABC):
     def delete(self, group_id: str) -> bool:
         pass
 
+
+class ParticipantRepositoryInterface(ABC):
+
     @abstractmethod
-    def add_participant(self, group_id: str, employee_id: str) -> Optional[Dict]:
+    def get_all_by_group(self, group_id: str) -> List[Dict]:
+        """Получить всех участников группы"""
         pass
 
     @abstractmethod
-    def remove_participant(self, group_id: str, participant_id: str) -> bool:
+    def get_by_id(self, group_id: str, participant_id: str) -> Optional[Dict]:
+        """Получить участника группы по ID"""
         pass
 
     @abstractmethod
-    def update_participant_progress(
-        self, group_id: str, participant_id: str, progress: float
+    def add(self, group_id: str, employee_id: str) -> Optional[Dict]:
+        """
+        Добавить участника в группу.
+        Создаёт связь между сотрудником (employee_id) и группой (group_id).
+        Возвращает None если группа или сотрудник не найдены.
+        """
+        pass
+
+    @abstractmethod
+    def remove(self, group_id: str, participant_id: str) -> bool:
+        """
+        Удалить участника из группы.
+        Возвращает False если участник не найден.
+        """
+        pass
+
+    @abstractmethod
+    def update_progress(
+            self, group_id: str, participant_id: str, progress: float
     ) -> Optional[Dict]:
+        """
+        Обновить процент завершения курса участником.
+        progress — число от 0.0 до 100.0.
+        Возвращает None если участник не найден.
+        """
         pass
 
 
