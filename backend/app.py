@@ -1,3 +1,4 @@
+import os
 from flask import Flask, request
 from flask_cors import CORS
 
@@ -9,7 +10,10 @@ from routes.specifications import specifications_bp
 from routes.xml import xml_bp
 
 app = Flask(__name__)
-CORS(app, origins=["https://acridgold.github.io"])
+
+cors_origins = os.getenv('CORS_ORIGINS', 'https://acridgold.github.io').split(',')
+cors_origins = [origin.strip() for origin in cors_origins]
+CORS(app, origins=cors_origins)
 
 app.json.ensure_ascii = False
 

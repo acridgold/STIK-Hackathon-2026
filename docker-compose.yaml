@@ -15,13 +15,29 @@ services:
   backend:
     build: ./backend
     container_name: erp_backend_container
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/global_erp_db
+    env_file:
+      - ./backend/.env.docker
     ports:
       - "5000:5000"
     depends_on:
       - db
     restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: erp_frontend_container
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    environment:
+      - VITE_API_URL=http://localhost:5000
+      - VITE_BASE_PATH=/
 
 volumes:
   postgres_data:

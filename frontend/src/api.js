@@ -1,4 +1,4 @@
-const rawUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const rawUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const BASE_URL = rawUrl.replace(/\/api\/?$/, '').replace(/\/$/, '');
 
 async function request(method, path, body) {
@@ -61,14 +61,11 @@ export const api = {
     // XML import
     importXML: (file, type) => {
         const form = new FormData();
-        // Проверь, что file — это действительно объект File (из input type="file")
         form.append('file', file);
         form.append('type', type);
 
         return fetch(`${BASE_URL}/api/xml/upload`, {
             method: 'POST',
-            // ВАЖНО: headers оставляем пустым,
-            // чтобы браузер сам поставил multipart/form-data с правильным boundary
             body: form
         }).then(res => {
             if (!res.ok) return res.json().then(err => { throw new Error(err.error || `Error ${res.status}`) });

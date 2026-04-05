@@ -9,6 +9,6 @@ export default defineConfig({
             '@': resolve(__dirname, 'src'),
         },
     },
-    base: '/STIK-Hackathon-2026/',
+    base: process.env.VITE_BASE_PATH || '/STIK-Hackathon-2026/',
     root: __dirname,
 })
