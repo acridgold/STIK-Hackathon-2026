@@ -269,6 +269,11 @@ export const useStore = create(
                 }))
             })),
 
+            // ── Bulk setters (для загрузки с бэкенда) ──
+            setGroups:    (groups)    => set(s => ({ groups:    typeof groups    === 'function' ? groups(s.groups)    : groups })),
+            setCourses:   (courses)   => set(s => ({ courses:   typeof courses   === 'function' ? courses(s.courses)   : courses })),
+            setEmployees: (employees) => set(s => ({ employees: typeof employees === 'function' ? employees(s.employees) : employees })),
+
             // ── Participants ──
             addParticipant: (groupId, employeeId) => set(s => ({
                 groups: s.groups.map(g => {
