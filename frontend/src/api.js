@@ -60,16 +60,18 @@ export const api = {
 
     // XML import
     importXML: (file, type) => {
-        const form = new FormData()
-        form.append('file', file)
-        form.append('type', type)   // 'courses' | 'employees' | 'groups'
+        const form = new FormData();
+        // Проверь, что file — это действительно объект File (из input type="file")
+        form.append('file', file);
+        form.append('type', type);
 
-        // Тут тоже добавляем /api, чтобы путь был /api/xml/upload
         return fetch(`${BASE_URL}/api/xml/upload`, {
             method: 'POST',
+            // ВАЖНО: headers оставляем пустым,
+            // чтобы браузер сам поставил multipart/form-data с правильным boundary
             body: form
         }).then(res => {
-            if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+            if (!res.ok) return res.json().then(err => { throw new Error(err.error || `Error ${res.status}`) });
             return res.json();
         });
     }
