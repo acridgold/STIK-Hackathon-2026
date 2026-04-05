@@ -160,8 +160,6 @@ SELECT
 FROM employees e
 LEFT JOIN companies c ON e.company_id = c.company_id;
 
-
-
 CREATE OR REPLACE VIEW v_study_groups_full AS
 SELECT
     sg.group_id AS id,
@@ -172,7 +170,24 @@ SELECT
     sg.status,
     sg.actual_price_per_person,
     sg.specification_id,
+
+    -- Атрибут 6: Количество участников обучения
     COUNT(gp.participant_id) AS participant_count,
+
+    -- Атрибут 7: Стоимость за группу, руб
+    -- Комментарий к расчету:
+    -- Общая стоимость формируется умножением цены за одного сотрудника
+    -- на фактическое количество записей в таблице участников.
+    -- COALESCE используется для обработки случая, если цена не указана (считаем как 0).
+    (COALESCE(sg.actual_price_per_person, 0) * COUNT(gp.participant_id)) AS total_group_cost,
+
+    -- Атрибут 9: Средний прогресс по группе, в %
+    -- Комментарий к расчету:
+    -- Вычисляется как среднее арифметическое (AVG) поля completion_percentage
+    -- из таблицы участников. Если участников нет, прогресс считается равным 0.
+    COALESCE(AVG(gp.completion_percentage), 0) AS average_progress,
+
+    -- Детализация участников (JSON)
     COALESCE(
         JSON_AGG(
             JSON_BUILD_OBJECT(

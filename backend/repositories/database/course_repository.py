@@ -10,7 +10,8 @@ class CourseRepository(CourseRepositoryInterface):
     def get_all(self) -> List[Dict]:
         with get_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT * FROM courses ORDER BY course_id;")
+                cur.execute(
+                    "SELECT course_id AS id, course_name, description, duration_days, price_per_person FROM courses ORDER BY course_id;")
                 return [dict(row) for row in cur.fetchall()]
 
     def get_by_id(self, course_id: str) -> Optional[Dict]:
