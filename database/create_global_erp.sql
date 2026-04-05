@@ -122,7 +122,7 @@ SELECT
 FROM study_groups sg
          JOIN courses c ON sg.course_id = c.course_id
          LEFT JOIN group_participants gp ON sg.group_id = gp.group_id
-GROUP BY sg.group_id, c.course_name;
+GROUP BY sg.group_id, sg.course_id, c.course_name, sg.start_date, sg.end_date, sg.status, sg.specification_id, sg.actual_price_per_person;
 
 --
 ---- Расчет итогов Спецификации (Сумма без НДС, НДС 22%, Итого)
