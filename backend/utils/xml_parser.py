@@ -1,13 +1,4 @@
-"""
-xml_parser.py
 
-Парсер XML файлов из системы Global ERP.
-
-Поддерживаемые форматы:
-
-1. Курс (Edu_Course)
-2. Участник обучения (Edu_Participant)
-"""
 from __future__ import annotations
 
 from typing import Dict, Any, List, Tuple
@@ -20,19 +11,16 @@ from repositories.base import (
 # ─── Исключения для понятных сообщений об ошибках ──────────────────────────
 
 class XMLValidationError(Exception):
-    """Ошибка валидации XML — возвращается пользователю как 400."""
     pass
 
 
 class ForeignKeyValidationError(XMLValidationError):
-    """Ошибка внешней ссылки — сущность не найдена."""
     pass
 
 
 # ─── Вспомогательные функции ────────────────────────────────────────────────
 
 def _get_text(node: Dict, key: str) -> str | None:
-    """Безопасно достаёт текст из тега, возвращает None если тег отсутствует."""
     val = node.get(key)
     if val is None:
         return None
@@ -40,7 +28,6 @@ def _get_text(node: Dict, key: str) -> str | None:
 
 
 def _require(node: Dict, key: str, label: str) -> str:
-    """Достаёт обязательное поле. Бросает XMLValidationError если пусто."""
     val = _get_text(node, key)
     if not val:
         raise XMLValidationError(f"Обязательное поле <{key}> ({label}) отсутствует или пустое")
@@ -48,7 +35,6 @@ def _require(node: Dict, key: str, label: str) -> str:
 
 
 def _require_int(node: Dict, key: str, label: str, min_val: int = 1) -> int:
-    """Достаёт обязательное целое число с проверкой минимального значения."""
     raw = _require(node, key, label)
     try:
         val = int(raw)
@@ -60,7 +46,6 @@ def _require_int(node: Dict, key: str, label: str, min_val: int = 1) -> int:
 
 
 def _require_float(node: Dict, key: str, label: str, min_val: float = 0.01) -> float:
-    """Достаёт обязательное число с плавающей точкой."""
     raw = _require(node, key, label)
     try:
         val = float(raw)
@@ -72,10 +57,6 @@ def _require_float(node: Dict, key: str, label: str, min_val: float = 0.01) -> f
 
 
 def _normalize_to_list(data: Any) -> List[Dict]:
-    """
-    xmltodict возвращает dict если запись одна, list если несколько.
-    Приводим всегда к списку.
-    """
     if isinstance(data, dict):
         return [data]
     if isinstance(data, list):
@@ -83,13 +64,8 @@ def _normalize_to_list(data: Any) -> List[Dict]:
     return []
 
 
-# ─── Определение типа XML файла ─────────────────────────────────────────────
 
 def detect_xml_type(parsed: Dict) -> str:
-    """
-    Определяет тип XML по корневому тегу.
-    Возвращает: 'courses' | 'employees' | 'unknown'
-    """
     root_key = next(iter(parsed), None)
     if root_key is None:
         return 'unknown'
@@ -104,19 +80,11 @@ def detect_xml_type(parsed: Dict) -> str:
     return 'unknown'
 
 
-# ─── Основной класс парсера ──────────────────────────────────────────────────
 
 class XMLParser:
-    """
-    Парсер XML из системы Global ERP.
-    Все методы статические — экземпляр не нужен.
-    """
-
-    # ── Курсы ────────────────────────────────────────────────────────────────
 
     @staticmethod
     def _validate_course(node: Dict, index: int) -> Dict:
-        """Валидирует одну запись курса из XML."""
         prefix = f"Курс #{index + 1}"
 
         course_name = _require(node, 'sCourseHL', f"{prefix}: название курса")
@@ -168,8 +136,6 @@ class XMLParser:
             count += 1
 
         return count, warnings
-
-    # ── Участники обучения (Сотрудники) ─────────────────────────────────────
 
     @staticmethod
     def _validate_employee(node: Dict, index: int) -> Dict:
