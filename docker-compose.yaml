@@ -7,12 +7,21 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     volumes:
-      # Путь слева — это место, где лежит твой файл на Fedora
-      # Путь справа — стандартная папка PostgreSQL для авто-инициализации
       - ./create_global_erp.sql:/docker-entrypoint-initdb.d/create_global_erp.sql
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+
+  backend:
+    build: ./backend
+    container_name: erp_backend_container
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/global_erp_db
+    ports:
+      - "5000:5000"
+    depends_on:
+      - db
+    restart: always
 
 volumes:
   postgres_data:
