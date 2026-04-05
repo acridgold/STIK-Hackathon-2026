@@ -1,65 +1,82 @@
 # ERP System Project
 
-Этот проект представляет собой систему с бэкендом на **Python 3.11 (Flask/Gunicorn)** и базой данных **PostgreSQL 15**.
+Этот проект представляет собой систему с бэкендом на **Python 3.11 (Flask/Gunicorn)**, фронтендом на **React 18 (Vite)** и базой данных **PostgreSQL 15**.
 
-## 🚀 Быстрый запуск (через Docker)
+## 🚀 Быстрый запуск (через Docker Compose)
 
-Самый простой способ запустить всё окружение одной командой.
+Самый простой способ запустить весь проект (фронтенд, бэкенд и базу данных) одной командой.
 
 ### Предварительные требования
 * Установленный **Docker** и **Docker Compose**.
 * На Fedora убедитесь, что ваш пользователь добавлен в группу `docker`: `sudo usermod -aG docker $USER` (потребуется перезагрузка).
 
 ### Инструкция
-1.  **Настройте окружение:**
-    Скопируйте пример файла настроек и отредактируйте его при необходимости:
-    ```bash
-    cp backend/.env.sample backend/.env
-    ```
-2.  **Запустите контейнеры:**
-    ```bash
-    docker-compose up --build
-    ```
-3.  **Проверьте работу:**
-    Бэкенд будет доступен по адресу: `http://localhost:5000`
+1. **Запустите контейнеры:**
+   ```bash
+   docker compose up --build
+   ```
 
-4. Остановка проекта
-**Чтобы остановить и удалить контейнеры, сохранив данные в Volume:**
-    ```bash
-    docker compose down
-    ```
+2. **Откройте приложение:**
+   * **Фронтенд**: http://localhost:5173
+   * **Бэкенд (API)**: http://localhost:5000
+   * **База данных**: localhost:5433 (PostgreSQL)
+
+3. **Остановка проекта**
+   Чтобы остановить и удалить контейнеры, сохранив данные в Volume:
+   ```bash
+   docker compose down
+   ```
+
+### Структура сервисов
+| Сервис | Порт | Роль |
+|--------|------|------|
+| **frontend** | 5173 | React приложение (Vite dev server) |
+| **backend** | 5000 | Flask REST API |
+| **db** | 5433 | PostgreSQL база данных |
+
 ---
 
 ## 🛠 Локальная разработка (без Docker)
 
-Если вам нужно запустить бэкенд локально для отладки, используйте виртуальное окружение.
+Если вам нужно запустить проект локально для отладки без Docker, следуйте этим инструкциям.
 
 ### Предварительные требования
 * **Python 3.11**. На Fedora установите его командой:
-    ```bash
-    sudo dnf install python3.11
-    ```
+  ```bash
+  sudo dnf install python3.11
+  ```
+* **Node.js 18+** для фронтенда:
+  ```bash
+  sudo dnf install nodejs
+  ```
 
 ### Инструкция
-1.  **Создайте и активируйте venv:**
-    ```bash
-    cd backend
-    python3.11 -m venv .venv
-    source .venv/bin/activate
-    ```
-2.  **Установите зависимости:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-3.  **Запустите базу данных:**
-    Вы можете запустить только контейнер с БД:
-    ```bash
-    docker-compose up db -d
-    ```
-4.  **Запустите приложение:**
-    ```bash
-    python app.py
-    ```
+
+#### 1. Запустите только базу данных в Docker
+```bash
+docker compose up db -d
+```
+
+#### 2. Запустите бэкенд локально
+```bash
+cd backend
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.sample .env
+python app.py
+```
+
+Бэкенд будет доступен на **http://localhost:8080** (для локальной разработки).
+
+#### 3. Запустите фронтенд локально
+В отдельном терминале:
+```bash
+npm install
+npm run dev
+```
+
+Фронтенд будет доступен на **http://localhost:5173**.
 
 ---
 
@@ -72,60 +89,69 @@ docker ps
 ```
 
 ### 2. Проверка логов бэкенда
-Если сервис не отвечает, проверьте логи на наличие ошибок подключения к БД или синтаксических ошибок Python:
+Если сервис не отвечает, проверьте логи на наличие ошибок подключения к БД:
 ```bash
 docker compose logs -f backend
 ```
 *Ожидаемый результат: сообщение `Listening at: http://0.0.0.0:5000`*.
 
-### 2. Проверка маршрутов (API)
+### 3. Проверка маршрутов (API)
 Чтобы узнать, какие URL-адреса доступны на сервере, выполните команду внутри контейнера бэкенда:
 ```bash
 docker exec -it erp_backend_container flask routes
 ```
 
-### 3. Проверка базы данных (PostgreSQL)
+### 4. Проверка базы данных (PostgreSQL)
 Проверьте, создались ли таблицы из файла `create_global_erp.sql`:
 ```bash
 docker exec -it erp_db_container psql -U postgres -d global_erp_db -c "\dt"
 ```
 
-### 4. Тестирование API
-Выполните проверочный запрос к одному из эндпоинтов (замените на актуальный маршрут из вашего `app.py`):
+### 5. Тестирование API
+Выполните проверочный запрос к одному из эндпоинтов:
 ```bash
-# Пример для списка компаний
 curl http://localhost:5000/api/companies
 ```
-Ожидаемый результат: 
-```bash
-Endpoint                             Methods  Rule                                                         
------------------------------------  -------  -------------------------------------------------------------
-companies.create_company             POST     /api/companies                                               
-companies.delete_company             DELETE   /api/companies/<company_id>                                  
-companies.get_companies              GET      /api/companies                                               
-companies.update_company             PUT      /api/companies/<company_id>                                  
-courses.create_course                POST     /api/courses                                                 
-courses.delete_course                DELETE   /api/courses/<course_id>                                     
-courses.get_course                   GET      /api/courses/<course_id>                                     
-courses.get_courses                  GET      /api/courses
- и т.д.
-```
 
-## 📁 Структура проекта
-* [cite_start]`/backend` — Исходный код Python (Flask)[cite: 1].
-* [cite_start]`/backend/requirements.txt` — Список зависимостей (Python 3.11+)[cite: 1].
-* [cite_start]`docker-compose.yaml` — Конфигурация всей инфраструктуры[cite: 1].
-* [cite_start]`create_global_erp.sql` — Скрипт инициализации БД[cite: 1].
+### 6. Проверка логов фронтенда
+Если фронтенд не загружается, проверьте логи:
+```bash
+docker compose logs -f frontend
+```
+*Ожидаемый результат: сообщение `Local: http://localhost:5173`*.
 
 ---
 
-## ⚠️ Решение частых проблем на Fedora
+## 📁 Структура проекта
+* `/backend` — Исходный код Python (Flask/Gunicorn)
+* `/frontend` — Исходный код React (Vite)
+* `/database` — SQL скрипты инициализации БД
+* `docker-compose.yaml` — Конфигурация всей инфраструктуры
+* `requirements.txt` — Список зависимостей Python
+* `package.json` — Список зависимостей Node.js
+
+---
+
+## ⚠️ Решение частых проблем
 
 ### Ошибка `docker-compose: command not found`
 На свежих версиях Fedora (42+) используйте команду **без дефиса**: `docker compose`.
-### Ошибка `Connection Refused` (Backend -> DB)
-Убедитесь, что в вашем файле `.env` или коде бэкенда в качестве хоста базы данных указано имя сервиса `db`, а не `localhost`.
-```env
-DATABASE_URL=postgresql://postgres:postgres@db:5432/global_erp_db
+
+### Ошибка `Connection Refused` (Backend -> DB в Docker)
+Убедитесь, что в `docker-compose.yaml` в качестве хоста базы данных указано имя сервиса `db`, а не `localhost`:
+```yaml
+environment:
+  DATABASE_URL=postgresql://postgres:postgres@db:5432/global_erp_db
 ```
+
+### Фронтенд не может подключиться к бэкенду
+При запуске через `docker compose up`, убедитесь что:
+- Frontend контейнер имеет доступ к `http://backend:5000` (по имени сервиса)
+- CORS настроены корректно в бэкенде (переменная `CORS_ORIGINS`)
+- Проверьте логи: `docker compose logs -f frontend`
+
+### Frontend выдает CORS ошибку
+Убедитесь, что `CORS_ORIGINS` в `.env.docker` включает `http://localhost:5173`:
+```env
+CORS_ORIGINS=http://localhost:5173,https://acridgold.github.io
 ```
