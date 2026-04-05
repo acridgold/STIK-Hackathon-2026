@@ -9,16 +9,15 @@ import { courseService } from '../services/courseService.js'
 const fmt = (n) => new Intl.NumberFormat('ru-RU').format(Math.round(n))
 
 function CourseModal({ course, onClose, onSaved }) {
-    // ✅ Убрали addCourse / updateCourse — теперь используем сервис
-    // ✅ Добавили setCourses для обновления стора после ответа бэкенда
     const { setCourses } = useStore()
     const toast = useToast()
 
     const [form, setForm] = useState({
-        name:         course?.name        || '',
-        description:  course?.description || '',
-        durationDays: course?.durationDays || 1,
-        price:        course ? getCurrentPrice(course) : '',
+        // Добавляем поддержку полей из XML (sCourseHL, nPricePerPerson) на случай, если они приходят в сыром виде
+        name:         course?.name || course?.sCourseHL || '',
+        description:  course?.description || course?.sDescription || '',
+        durationDays: course?.durationDays || course?.nDurationInDays || 1,
+        price:        course ? getCurrentPrice(course) : (course?.nPricePerPerson || ''),
     })
     const [errors, setErrors] = useState({})
 
@@ -31,13 +30,10 @@ function CourseModal({ course, onClose, onSaved }) {
         return Object.keys(e).length === 0
     }
 
-    // ✅ Переименовали handleSubmit_NEW → handleSubmit
-    // ✅ Теперь кнопка onClick={handleSubmit} работает
     async function handleSubmit() {
         if (!validate()) return
-
         try {
-            if (course) {
+            if (course?.id) {
                 const updated = await courseService.update(course.id, form)
                 setCourses(prev => prev.map(c => c.id === updated.id ? updated : c))
             } else {
@@ -81,17 +77,11 @@ function CourseModal({ course, onClose, onSaved }) {
                             <input type="number" className="input" min={0} value={form.price}
                                    onChange={e => setForm(f => ({ ...f, price: Number(e.target.value) }))} />
                             {errors.price && <span className="form-error">{errors.price}</span>}
-                            {course && (
-                                <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
-                                    Изменение цены создаёт запись в истории
-                                </span>
-                            )}
                         </div>
                     </div>
                 </div>
                 <div className="modal-footer">
                     <button className="btn btn-ghost btn-sm" onClick={onClose}>Отмена</button>
-                    {/* ✅ onClick={handleSubmit} — теперь имя совпадает с функцией выше */}
                     <button className="btn btn-primary btn-sm" onClick={handleSubmit}>
                         {course ? 'Сохранить' : 'Создать'}
                     </button>
@@ -103,15 +93,12 @@ function CourseModal({ course, onClose, onSaved }) {
 
 export default function CoursesPage() {
     const toast = useToast()
-    // ✅ Убрали deleteCourse из стора — теперь удаление через сервис
-    // ✅ Добавили setCourses для обновления стора после удаления
     const { courses, groups, setCourses } = useStore()
     const [showModal, setShowModal]       = useState(false)
     const [editTarget, setEditTarget]     = useState(null)
     const [deleteTarget, setDeleteTarget] = useState(null)
     const [historyOpen, setHistoryOpen]   = useState(null)
 
-    // ✅ Новая функция удаления — идёт на бэкенд, потом обновляет стор
     async function handleDelete() {
         try {
             await courseService.delete(deleteTarget.id)
@@ -127,7 +114,7 @@ export default function CoursesPage() {
         <div className="page-enter">
             <PageHeader
                 title="Курсы обучения"
-                subtitle={`${courses.length} курсов в каталоге`}
+                subtitle={`${courses?.length || 0} курсов в каталоге`}
                 actions={
                     <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>
                         <Plus size={13} /> Новый курс
@@ -148,34 +135,36 @@ export default function CoursesPage() {
                     </tr>
                     </thead>
                     <tbody>
-                    {courses.map(c => {
-                        const price      = getCurrentPrice(c)
+                    {/* Добавлена проверка на существование массива courses */}
+                    {courses && courses.map(c => {
+                        // Мапим данные из XML, если они еще не преобразованы
+                        const courseName = c.name || c.sCourseHL || 'Без названия'
+                        const price      = getCurrentPrice(c) || c.nPricePerPerson || 0
+                        const duration   = c.durationDays || c.nDurationInDays || 0
                         const groupCount = groups.filter(g => g.courseId === c.id).length
                         const isHistOpen = historyOpen === c.id
+                        // Безопасное получение истории цен
+                        const pHistory   = c.priceHistory || []
 
                         return (
                             <React.Fragment key={c.id}>
                                 <tr>
                                     <td>
-                                        <div style={{ fontWeight: 500 }}>{c.name}</div>
-                                        {c.description && (
+                                        <div style={{ fontWeight: 500 }}>{courseName}</div>
+                                        {(c.description || c.sDescription) && (
                                             <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
-                                                {c.description}
+                                                {c.description || c.sDescription}
                                             </div>
                                         )}
                                     </td>
                                     <td style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
-                                        {c.durationDays} дн.
+                                        {duration} дн.
                                     </td>
                                     <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13 }}>
                                         {fmt(price)} ₽
                                     </td>
                                     <td style={{ textAlign: 'center' }}>
-                                        <span className="badge" style={{
-                                            background: 'var(--glass-2)',
-                                            border: '1px solid var(--border-subtle)',
-                                            color: 'var(--text-secondary)',
-                                        }}>
+                                        <span className="badge" style={{ background: 'var(--glass-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
                                             {groupCount} гр.
                                         </span>
                                     </td>
@@ -186,18 +175,16 @@ export default function CoursesPage() {
                                             onClick={() => setHistoryOpen(isHistOpen ? null : c.id)}
                                         >
                                             <History size={11} />
-                                            {c.priceHistory.length} записей
+                                            {pHistory.length} записей
                                             {isHistOpen ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
                                         </button>
                                     </td>
                                     <td>
                                         <div style={{ display: 'flex', gap: 4 }}>
-                                            <button className="btn btn-icon btn-sm"
-                                                    onClick={() => setEditTarget(c)}>
+                                            <button className="btn btn-icon btn-sm" onClick={() => setEditTarget(c)}>
                                                 <Edit2 size={12} />
                                             </button>
-                                            <button className="btn btn-icon btn-sm"
-                                                    onClick={() => setDeleteTarget(c)}>
+                                            <button className="btn btn-icon btn-sm" onClick={() => setDeleteTarget(c)}>
                                                 <Trash2 size={12} />
                                             </button>
                                         </div>
@@ -206,37 +193,23 @@ export default function CoursesPage() {
                                 {isHistOpen && (
                                     <tr>
                                         <td colSpan={6} style={{ padding: 0 }}>
-                                            <div style={{
-                                                padding: '12px 20px',
-                                                background: 'var(--glass-1)',
-                                                borderTop: '1px solid var(--border-subtle)',
-                                            }}>
+                                            <div style={{ padding: '12px 20px', background: 'var(--glass-1)', borderTop: '1px solid var(--border-subtle)' }}>
                                                 <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>
-                                                    ИСТОРИЯ ЦЕН — используется для фиксации цены на дату начала группы
+                                                    ИСТОРИЯ ЦЕН
                                                 </div>
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                                    {[...c.priceHistory]
-                                                        .sort((a, b) => b.validFrom > a.validFrom ? 1 : -1)
-                                                        .map((h, i) => (
-                                                            <div key={i} style={{
-                                                                display: 'flex', alignItems: 'center', gap: 16,
-                                                                fontSize: 12, color: 'var(--text-secondary)',
-                                                            }}>
-                                                                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)' }}>
-                                                                    {h.validFrom}
-                                                                </span>
-                                                                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
-                                                                    {fmt(h.price)} ₽
-                                                                </span>
-                                                                {i === 0 && (
-                                                                    <span className="badge" style={{
-                                                                        background: 'var(--accent-green-dim)',
-                                                                        color: 'var(--accent-green)',
-                                                                        border: '1px solid rgba(52,211,153,0.2)',
-                                                                    }}>актуальная</span>
-                                                                )}
-                                                            </div>
-                                                        ))}
+                                                    {pHistory.length > 0 ? (
+                                                        [...pHistory]
+                                                            .sort((a, b) => b.validFrom > a.validFrom ? 1 : -1)
+                                                            .map((h, i) => (
+                                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 12, color: 'var(--text-secondary)' }}>
+                                                                    <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)' }}>{h.validFrom}</span>
+                                                                    <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>{fmt(h.price)} ₽</span>
+                                                                </div>
+                                                            ))
+                                                    ) : (
+                                                        <div style={{ fontSize: 11 }}>История пуста (цена задана в XML)</div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </td>
@@ -245,11 +218,11 @@ export default function CoursesPage() {
                             </React.Fragment>
                         )
                     })}
-                    {courses.length === 0 && (
+                    {(!courses || courses.length === 0) && (
                         <tr>
                             <td colSpan={6}>
                                 <div className="empty-state">
-                                    <div className="empty-state-title">Нет курсов</div>
+                                    <div className="empty-state-title">Курсы не загружены</div>
                                 </div>
                             </td>
                         </tr>
@@ -273,7 +246,7 @@ export default function CoursesPage() {
             {deleteTarget && (
                 <ConfirmDialog
                     title="Удалить курс?"
-                    message={`Курс «${deleteTarget.name}» будет удалён. Существующие группы сохранятся.`}
+                    message={`Курс «${deleteTarget.name || deleteTarget.sCourseHL}» будет удалён.`}
                     onConfirm={handleDelete}
                     onCancel={() => setDeleteTarget(null)}
                 />
