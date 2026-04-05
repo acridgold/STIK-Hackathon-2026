@@ -1,10 +1,12 @@
 from flask import Blueprint, request, jsonify
-from repositories.group_repository import group_repository
+from repositories.database.group_repository import group_repository
+from repositories.database.participant_repository import participant_repository
 from schemas.group_schema import (
-    GroupCreate, GroupUpdate,
-    ParticipantAdd, ParticipantProgressUpdate,
+    GroupCreate, GroupUpdate
 )
 from pydantic import ValidationError
+
+from schemas.participant_schema import ParticipantAdd, ParticipantProgressUpdate
 
 groups_bp = Blueprint("groups", __name__)
 
@@ -83,7 +85,7 @@ def add_participant(group_id: str):
     """Добавить участника в группу"""
     try:
         data = ParticipantAdd.model_validate(request.json)
-        participant = group_repository.add_participant(group_id, data.employee_id)
+        participant = participant_repository.add(group_id, data.employee_id)
 
         if participant is None:
             return jsonify({"message": "Group not found"}), 404
@@ -99,7 +101,7 @@ def add_participant(group_id: str):
 @groups_bp.route("/<group_id>/participants/<participant_id>", methods=["DELETE"])
 def remove_participant(group_id: str, participant_id: str):
     """Удалить участника из группы"""
-    result = group_repository.remove_participant(group_id, participant_id)
+    result = participant_repository.remove(group_id, participant_id)
 
     if not result:
         return jsonify({"message": "Participant not found"}), 404
@@ -112,7 +114,7 @@ def update_participant_progress(group_id: str, participant_id: str):
     """Обновить прогресс участника"""
     try:
         data = ParticipantProgressUpdate.model_validate(request.json)
-        participant = group_repository.update_participant_progress(
+        participant = participant_repository.update_progress(
             group_id, participant_id, data.progress
         )
 

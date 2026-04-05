@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from repositories.specification_repository import specification_repository
+from repositories.database.specification_repository import specification_repository
 from schemas.specification_schema import SpecificationCreate, SpecificationUpdate
 from pydantic import ValidationError
 

@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from repositories.employee_repository import employee_repository
+from repositories.database.employee_repository import employee_repository
 from schemas.employee_schema import EmployeeCreate, EmployeeUpdate
 from pydantic import ValidationError
 
@@ -15,11 +15,26 @@ def get_employees():
 
 @employees_bp.route("", methods=["POST"])
 def create_employee():
-    """Создать сотрудника"""
     try:
         data = EmployeeCreate.model_validate(request.json)
+
+        # Проверяем совпадения ДО создания
+        similar = employee_repository.find_similar(
+            data.full_name, data.company_id
+        )
+
         employee = employee_repository.create(data.model_dump())
-        return jsonify(employee), 201
+
+        response: dict = {"data": employee}
+        if similar:
+            response["warning"] = (
+                f"Найдено {len(similar)} сотрудник(ов) с такими же данными "
+                f"в этой компании. Возможно, сотрудник уже существует."
+            )
+            response["similar"] = similar
+
+        return jsonify(response), 201
+
     except ValidationError as e:
         return jsonify({
             "error": "Validation error",

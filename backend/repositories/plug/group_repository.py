@@ -2,7 +2,7 @@ import uuid
 from typing import Dict, List, Optional
 
 from repositories.base import GroupRepositoryInterface
-from repositories.course_repository import course_repository
+from repositories.plug.course_repository import course_repository
 
 
 class GroupRepository(GroupRepositoryInterface):

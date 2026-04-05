@@ -4,18 +4,16 @@ from datetime import date
 
 
 class SpecificationCreate(BaseModel):
-    spec_date: date = Field(..., description="Дата спецификации")
-    spec_number: str = Field(..., min_length=1, max_length=100, description="Номер спецификации")
-    company_id: str = Field(..., description="ID компании-заказчика")
-    group_ids: List[str] = Field(default_factory=list, description="Список ID учебных групп")
+    doc_date: date = Field(..., description="Дата спецификации")
+    doc_number: str = Field(..., min_length=1, max_length=100, description="Номер спецификации")
+    company_id: int = Field(..., description="ID компании-заказчика")
 
     model_config = ConfigDict(extra="forbid")
 
 
 class SpecificationUpdate(BaseModel):
-    spec_date: Optional[date] = None
-    spec_number: Optional[str] = Field(None, min_length=1, max_length=100)
-    company_id: Optional[str] = None
-    group_ids: Optional[List[str]] = None
+    doc_date: Optional[date] = None
+    doc_number: Optional[str] = Field(None, min_length=1, max_length=100)
+    company_id: Optional[int] = None
 
     model_config = ConfigDict(extra="forbid")

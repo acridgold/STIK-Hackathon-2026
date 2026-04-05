@@ -3,9 +3,9 @@ from typing import Optional
 
 
 class EmployeeCreate(BaseModel):
-    full_name: str = Field(..., min_length=1, max_length=255, description="ФИО сотрудника")
-    company_id: str = Field(..., description="ID компании")
-    email: EmailStr = Field(..., description="Email сотрудника")
+    full_name: str = Field(..., min_length=1, max_length=255)
+    company_id: int
+    email: Optional[EmailStr] = None  # сделай необязательным
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
