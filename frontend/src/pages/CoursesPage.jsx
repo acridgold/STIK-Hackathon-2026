@@ -274,7 +274,6 @@ export default function CoursesPage() {
                 <ConfirmDialog
                     title="Удалить курс?"
                     message={`Курс «${deleteTarget.name}» будет удалён. Существующие группы сохранятся.`}
-                    {/* ✅ onConfirm теперь вызывает handleDelete с запросом к бэкенду */}
                     onConfirm={handleDelete}
                     onCancel={() => setDeleteTarget(null)}
                 />
