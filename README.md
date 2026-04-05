@@ -6,6 +6,28 @@ https://acridgold.github.io/STIK-Hackathon-2026/
 
 ## 🚀 Быстрый старт
 
+### Предварительные требования
+* Установленный **Docker** и **Docker Compose**.
+* На Fedora убедитесь, что ваш пользователь добавлен в группу `docker`: `sudo usermod -aG docker $USER` (потребуется перезагрузка).
+
+### Инструкция
+1. **Запустите контейнеры:**
+   ```bash
+   docker compose up --build
+   ```
+
+2. **Откройте приложение:**
+   * **Фронтенд**: http://localhost:5173
+   * **Бэкенд (API)**: http://localhost:5000
+   * **База данных**: localhost:5433 (PostgreSQL)
+
+3. **Остановка проекта**
+   Чтобы остановить и удалить контейнеры, сохранив данные в Volume:
+   ```bash
+   docker compose down
+   ```
+
+
 ### Frontend (GitHub Pages)
 
 ```bash
