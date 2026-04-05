@@ -1,8 +1,8 @@
 from typing import List, Dict, Optional
 
 from repositories.base import CompanyRepositoryInterface
+from utils.convert_id_to_int import safe_int
 from utils.db_connection import get_connection
-
 
 class CompanyRepository(CompanyRepositoryInterface):
 
@@ -26,26 +26,61 @@ class CompanyRepository(CompanyRepositoryInterface):
                 return dict(cur.fetchone())
 
     def update(self, company_id: str, data: Dict) -> Optional[Dict]:
-        fields = ", ".join(f"{k} = %({k})s" for k in data)
-        if not fields:
+        company_id_int = safe_int(company_id)
+        if company_id_int is None:
             return None
-        data["company_id"] = company_id
+
+        if not data:
+            # Если ничего не пришло на обновление — просто возвращаем текущую запись
+            return self.get_by_id(company_id)
+
+        fields = ", ".join(f"{k} = %({k})s" for k in data.keys())
+
+        # Добавляем company_id в параметры
+        params = data.copy()
+        params["company_id"] = company_id_int
+
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    f"UPDATE companies SET {fields} WHERE company_id = %(company_id)s RETURNING *;",
-                    data,
+                    f"""
+                    UPDATE companies 
+                    SET {fields} 
+                    WHERE company_id = %(company_id)s 
+                    RETURNING *;
+                    """,
+                    params,
                 )
                 row = cur.fetchone()
                 return dict(row) if row else None
 
     def delete(self, company_id: str) -> bool:
+        company_id_int = safe_int(company_id)
+        if company_id_int is None:
+            return False
+
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "DELETE FROM companies WHERE company_id = %s;", (company_id,)
+                    "DELETE FROM companies WHERE company_id = %s;",
+                    (company_id_int,)   # передаём как int
                 )
                 return cur.rowcount > 0
+
+    # Добавил вспомогательный метод для удобства (используется в update)
+    def get_by_id(self, company_id: str) -> Optional[Dict]:
+        company_id_int = safe_int(company_id)
+        if company_id_int is None:
+            return None
+
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT * FROM companies WHERE company_id = %s;",
+                    (company_id_int,)
+                )
+                row = cur.fetchone()
+                return dict(row) if row else None
 
 
 company_repository: CompanyRepositoryInterface = CompanyRepository()
