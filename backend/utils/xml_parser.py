@@ -216,36 +216,36 @@ class XMLParser:
 
     @staticmethod
     def _validate_employee(node: Dict, index: int) -> Dict:
-        """
-        Валидирует одну запись сотрудника из XML.
-
-        Маппинг полей Global ERP → БД:
-          sFIO            → full_name   (обязательное)
-          idOrganization  → company_id  (обязательное)
-          email           → email       (необязательное)
-        """
         prefix = f"Сотрудник #{index + 1}"
 
-        full_name = _require(node, 'sFIO', f"{prefix}: ФИО")
+        # Пытаемся взять sFIO, если его нет — собираем из частей
+        full_name = _get_text(node, 'sFIO')
+        if not full_name:
+            last = _get_text(node, 'sLastName') or ""
+            first = _get_text(node, 'sFirstName') or ""
+            middle = _get_text(node, 'sMiddleName') or ""
+            full_name = f"{last} {first} {middle}".strip()
+
+        if not full_name:
+            raise XMLValidationError(f"{prefix}: ФИО отсутствует (проверьте теги sFIO или sLastName/sFirstName)")
+
         if len(full_name) > 255:
             raise XMLValidationError(f"{prefix}: ФИО не должно превышать 255 символов")
 
-        company_id_raw = _require(node, 'idOrganization', f"{prefix}: ID организации")
+        # Проверка организации
+        company_id_raw = _get_text(node, 'idOrganization')
+        if not company_id_raw:
+            raise XMLValidationError(f"{prefix}: ID организации (idOrganization) отсутствует")
+
         try:
             company_id = int(company_id_raw)
         except ValueError:
-            raise XMLValidationError(
-                f"{prefix}: idOrganization должен быть числом, получено: '{company_id_raw}'"
-            )
-
-        email = _get_text(node, 'email')
-        if email and '@' not in email:
-            raise XMLValidationError(f"{prefix}: некорректный email '{email}'")
+            raise XMLValidationError(f"{prefix}: idOrganization должен быть числом")
 
         return {
-            "full_name":  full_name,
+            "full_name": full_name,
             "company_id": company_id,
-            "email":      email,
+            "email": _get_text(node, 'email'),
         }
 
     @staticmethod
