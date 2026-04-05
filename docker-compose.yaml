@@ -25,19 +25,17 @@ services:
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: frontend/Dockerfile
     container_name: erp_frontend_container
     ports:
       - "5173:5173"
-    depends_on:
-      - backend
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/public:/app/public
+      - ./frontend/vite.config.js:/app/vite.config.js
     environment:
       - VITE_API_URL=http://localhost:5000
-      - VITE_BASE_PATH=/
 
 volumes:
   postgres_data:
