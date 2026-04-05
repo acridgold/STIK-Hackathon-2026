@@ -6,6 +6,7 @@ from routes.courses import courses_bp
 from routes.employees import employees_bp
 from routes.groups import groups_bp
 from routes.specifications import specifications_bp
+from routes.xml import xml_bp
 
 app = Flask(__name__)
 CORS(app)
@@ -18,6 +19,7 @@ app.register_blueprint(courses_bp,        url_prefix="/api/courses")
 app.register_blueprint(employees_bp,      url_prefix="/api/employees")
 app.register_blueprint(groups_bp,         url_prefix="/api/groups")
 app.register_blueprint(specifications_bp, url_prefix="/api/specifications")
+app.register_blueprint(xml_bp,            url_prefix="/api/xml")
 
 @app.before_request
 def log_request():
