@@ -1,6 +1,5 @@
-// Очищаем URL от лишних слэшей в конце и убеждаемся, что база готова
 const rawUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-const BASE_URL = rawUrl.replace(/\/$/, '');
+const BASE_URL = rawUrl.replace(/\/api\/?$/, '').replace(/\/$/, '');
 
 async function request(method, path, body) {
     // Если путь не начинается с /api, добавляем его сами для консистентности
