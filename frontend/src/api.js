@@ -1,65 +1,16 @@
-/**
- * API SERVICE LAYER
- * ─────────────────────────────────────────────────────────────
- * Все обращения к бэкенду (Go + Gin) централизованы здесь.
- * Текущая версия MVP использует Zustand store (localStorage).
- * При подключении реального бэкенда — замените функции ниже
- * на реальные fetch/axios вызовы к соответствующим эндпоинтам.
- *
- * BACKEND ENDPOINTS (Go + Gin):
- *
- * Companies:
- *   GET    /api/companies
- *   POST   /api/companies
- *   PUT    /api/companies/:id
- *   DELETE /api/companies/:id
- *
- * Courses:
- *   GET    /api/courses
- *   POST   /api/courses
- *   PUT    /api/courses/:id
- *   DELETE /api/courses/:id
- *   GET    /api/courses/:id/price-history
- *
- * Employees:
- *   GET    /api/employees
- *   POST   /api/employees
- *   PUT    /api/employees/:id
- *   DELETE /api/employees/:id
- *
- * Groups:
- *   GET    /api/groups
- *   GET    /api/groups/:id
- *   POST   /api/groups
- *   PUT    /api/groups/:id
- *   DELETE /api/groups/:id
- *   POST   /api/groups/:id/participants
- *   DELETE /api/groups/:id/participants/:pid
- *   PATCH  /api/groups/:id/participants/:pid/progress
- *
- * Specifications:
- *   GET    /api/specifications
- *   GET    /api/specifications/:id
- *   POST   /api/specifications
- *   PUT    /api/specifications/:id
- *   DELETE /api/specifications/:id
- *
- * XML Integration:
- *   POST   /api/import/xml   (multipart/form-data, field: file)
- *
- * Analytics:
- *   GET    /api/analytics/companies        — сводка по компаниям
- *   GET    /api/analytics/schedule-conflicts — конфликты расписания
- */
-
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api'
+const rawUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const BASE_URL = rawUrl.replace(/\/api\/?$/, '').replace(/\/$/, '');
 
 async function request(method, path, body) {
-    const res = await fetch(`${BASE_URL}${path}`, {
+    // Если путь не начинается с /api, добавляем его сами для консистентности
+    const fullPath = path.startsWith('/api') ? path : `/api${path}`;
+
+    const res = await fetch(`${BASE_URL}${fullPath}`, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: body ? JSON.stringify(body) : undefined,
     })
+
     if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.message || `HTTP ${res.status}`)
@@ -93,8 +44,8 @@ export const api = {
     createGroup: (data) => request('POST', '/groups', data),
     updateGroup: (id, data) => request('PUT', `/groups/${id}`, data),
     deleteGroup: (id) => request('DELETE', `/groups/${id}`),
-    addParticipant: (groupId, employeeId) =>
-        request('POST', `/groups/${groupId}/participants`, { employeeId }),
+    addParticipant: (groupId, employee_id) =>
+        request('POST', `/groups/${groupId}/participants`, { employee_id }),
     removeParticipant: (groupId, pid) =>
         request('DELETE', `/groups/${groupId}/participants/${pid}`),
     updateProgress: (groupId, pid, progress) =>
@@ -108,16 +59,20 @@ export const api = {
     deleteSpecification: (id) => request('DELETE', `/specifications/${id}`),
 
     // XML import
-    importXML: (file) => {
+    importXML: (file, type) => {
         const form = new FormData()
         form.append('file', file)
-        return fetch(`${BASE_URL}/import/xml`, { method: 'POST', body: form })
-            .then(r => r.json())
-    },
+        form.append('type', type)   // 'courses' | 'employees' | 'groups'
 
-    // Analytics
-    getCompanyAnalytics: () => request('GET', '/analytics/companies'),
-    getScheduleConflicts: () => request('GET', '/analytics/schedule-conflicts'),
+        // Тут тоже добавляем /api, чтобы путь был /api/xml/upload
+        return fetch(`${BASE_URL}/api/xml/upload`, {
+            method: 'POST',
+            body: form
+        }).then(res => {
+            if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+            return res.json();
+        });
+    }
 }
 
-export default api
+export default api;
