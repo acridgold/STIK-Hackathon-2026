@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
-import { Calendar, AlertCircle, Download, Upload, Edit2, Check, X } from 'lucide-react'
+import { Calendar, AlertCircle, Download, Upload, Edit2, Check, X, RefreshCw } from 'lucide-react'
 import { useStore } from '../store/useStore.js'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
-import { uploadXMLToBackend } from '../components/api/xmlService.js'
+import { uploadXMLToBackend, exportAllToBackend, downloadXMLFromBackend } from '../components/api/xmlService.js'
 
 export default function GanttChart({ groups = [], courses = [], onGroupClick }) {
     const [viewMode, setViewMode] = useState('month')
@@ -11,6 +11,8 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
     const [dragStart, setDragStart] = useState({ x: 0, originalStartDate: null })
     const [editingGroup, setEditingGroup] = useState(null)
     const [editProgress, setEditProgress] = useState(0)
+    const [isSyncing, setIsSyncing] = useState(false)
+    const [lastSyncTime, setLastSyncTime] = useState(null)
     const scrollRef = useRef(null)
     const { updateGroup, updateParticipantProgress } = useStore()
 
@@ -61,7 +63,7 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
     }
 
     // Определение временной шкалы
-    const { allDates, minDate, maxDate, totalDays, pixelsPerDay } = useMemo(() => {
+    const { allDates, minDate, maxDate, pixelsPerDay } = useMemo(() => {
         if (!groups.length) {
             const now = new Date()
             const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
@@ -74,10 +76,9 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
                 else if (viewMode === 'month') current.setMonth(current.getMonth() + 1)
                 else current.setMonth(current.getMonth() + 3)
             }
-            const total = Math.ceil((end - start) / (1000 * 60 * 60 * 24))
             const columnWidth = viewMode === 'week' ? 100 : viewMode === 'month' ? 120 : 150
             const pixelsPerDayCalc = columnWidth / (viewMode === 'week' ? 7 : viewMode === 'month' ? 30 : 90)
-            return { allDates: dates, minDate: start, maxDate: end, totalDays: total, pixelsPerDay: pixelsPerDayCalc }
+            return { allDates: dates, minDate: start, maxDate: end, pixelsPerDay: pixelsPerDayCalc }
         }
        
         let min = new Date(groups[0].startDate)
@@ -101,11 +102,10 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
             else current.setMonth(current.getMonth() + 3)
         }
        
-        const total = Math.ceil((paddedMax - paddedMin) / (1000 * 60 * 60 * 24))
         const columnWidth = viewMode === 'week' ? 100 : viewMode === 'month' ? 120 : 150
         const pixelsPerDayCalc = columnWidth / (viewMode === 'week' ? 7 : viewMode === 'month' ? 30 : 90)
         
-        return { allDates: dates, minDate: paddedMin, maxDate: paddedMax, totalDays: total, pixelsPerDay: pixelsPerDayCalc }
+        return { allDates: dates, minDate: paddedMin, maxDate: paddedMax, pixelsPerDay: pixelsPerDayCalc }
     }, [groups, viewMode])
 
     const columnWidth = viewMode === 'week' ? 100 : viewMode === 'month' ? 120 : 150
@@ -116,7 +116,6 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
         const groupStart = new Date(group.startDate)
         const groupEnd = new Date(group.endDate)
         
-        // Смещение в днях от minDate
         const startOffsetDays = Math.max(0, (groupStart - minDate) / (1000 * 60 * 60 * 24))
         const durationDays = Math.max(1, (groupEnd - groupStart) / (1000 * 60 * 60 * 24))
         
@@ -128,8 +127,6 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
 
     const getColumnLabel = (date) => {
         if (viewMode === 'week') {
-            const endDate = new Date(date)
-            endDate.setDate(date.getDate() + 6)
             return `${date.getDate()}/${date.getMonth() + 1}`
         } else if (viewMode === 'month') {
             return date.toLocaleString('ru', { month: 'short' })
@@ -154,6 +151,108 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
         }
     }
 
+    // ========== АВТОМАТИЧЕСКАЯ СИНХРОНИЗАЦИЯ С БЭКЭНДОМ ==========
+
+    // 1. Автоматическая загрузка данных с бэкэнда
+    const autoLoadFromBackend = async () => {
+        console.log('🔄 Автоматическая загрузка XML с бэкэнда...')
+        setIsSyncing(true)
+        
+        try {
+            const groupsResult = await downloadXMLFromBackend('groups')
+            if (groupsResult.success && groupsResult.data) {
+                const importResult = useStore.getState().importFromXML(groupsResult.data)
+                console.log(`📊 Загружено групп: ${importResult.imported?.groups || 0}`)
+            }
+            
+            const coursesResult = await downloadXMLFromBackend('courses')
+            if (coursesResult.success && coursesResult.data) {
+                const importResult = useStore.getState().importFromXML(coursesResult.data)
+                console.log(`📚 Загружено курсов: ${importResult.imported?.courses || 0}`)
+            }
+            
+            const employeesResult = await downloadXMLFromBackend('employees')
+            if (employeesResult.success && employeesResult.data) {
+                const importResult = useStore.getState().importFromXML(employeesResult.data)
+                console.log(`👥 Загружено сотрудников: ${importResult.imported?.employees || 0}`)
+            }
+            
+            setLastSyncTime(new Date())
+            console.log('✅ Автоматическая синхронизация завершена')
+        } catch (error) {
+            console.log('⚠️ Бэкэнд не доступен, работаем с локальными данными')
+        } finally {
+            setIsSyncing(false)
+        }
+    }
+
+    // 2. Автоматический экспорт данных на бэкэнд (при изменениях)
+    const autoExportToBackend = async () => {
+        const store = useStore.getState()
+        
+        if (store.groups.length === 0 && store.courses.length === 0 && store.employees.length === 0) {
+            return
+        }
+        
+        console.log('📤 Автоматический экспорт данных на бэкэнд...')
+        
+        const result = await exportAllToBackend({
+            groups: store.groups,
+            courses: store.courses,
+            employees: store.employees,
+            companies: store.companies
+        })
+        
+        if (result.success) {
+            console.log('✅ Данные автоматически экспортированы на бэкэнд')
+        } else {
+            console.log('⚠️ Бэкэнд не доступен, данные сохранены локально')
+        }
+    }
+
+    // 3. Ручная синхронизация (кнопка "Синхр.")
+    const manualSync = async () => {
+        setIsSyncing(true)
+        try {
+            await autoLoadFromBackend()
+            if (lastSyncTime) {
+                alert('✅ Синхронизация с бэкэндом завершена')
+            } else {
+                alert('⚠️ Бэкэнд не доступен, работаем с локальными данными')
+            }
+        } catch (error) {
+            alert('❌ Бэкэнд не доступен')
+        } finally {
+            setIsSyncing(false)
+        }
+    }
+
+    // 4. Автоматическая загрузка при монтировании компонента
+    useEffect(() => {
+        autoLoadFromBackend()
+    }, [])
+
+    // 5. Автоматический экспорт при изменении данных (с debounce)
+    const debounceTimer = useRef(null)
+    useEffect(() => {
+        if (debounceTimer.current) {
+            clearTimeout(debounceTimer.current)
+        }
+        debounceTimer.current = setTimeout(() => {
+            if (groups.length > 0 || courses.length > 0) {
+                autoExportToBackend()
+            }
+        }, 2000)
+        
+        return () => {
+            if (debounceTimer.current) {
+                clearTimeout(debounceTimer.current)
+            }
+        }
+    }, [groups, courses])
+
+    // ========== КОНЕЦ АВТОМАТИЧЕСКОЙ СИНХРОНИЗАЦИИ ==========
+
     useEffect(() => {
         if (scrollRef.current && minDate && maxDate) {
             const today = new Date()
@@ -167,32 +266,29 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
         }
     }, [minDate, maxDate, pixelsPerDay])
 
-
-const handleXMLUpload = async (event) => {
-    const file = event.target.files[0]
-    if (!file) return
-    
-    // Отправка на бэкэнд
-    const uploadResult = await uploadXMLToBackend(file, 'groups')
-    if (uploadResult.success) {
-        console.log('✅ XML отправлен на бэкэнд')
-    } else {
-        console.warn('⚠️ Бэкэнд не доступен:', uploadResult.error)
+    const handleXMLUpload = async (event) => {
+        const file = event.target.files[0]
+        if (!file) return
+        
+        const uploadResult = await uploadXMLToBackend(file, 'groups')
+        if (uploadResult.success) {
+            console.log('✅ XML отправлен на бэкэнд')
+        } else {
+            console.warn('⚠️ Бэкэнд не доступен:', uploadResult.error)
+        }
+        
+        const text = await file.text()
+        const result = useStore.getState().importFromXML(text)
+        
+        if (result.success) {
+            alert(`✅ Импорт завершён!\nГрупп: ${result.imported.groups}\nКурсов: ${result.imported.courses}\nСотрудников: ${result.imported.employees}`)
+            window.location.reload()
+        } else {
+            alert(`❌ Ошибка импорта: ${result.error}`)
+        }
     }
-    
-    // Импорт в локальное хранилище
-    const text = await file.text()
-    const result = useStore.getState().importFromXML(text)
-    
-    if (result.success) {
-        alert(`✅ Импорт завершён!\nГрупп: ${result.imported.groups}\nКурсов: ${result.imported.courses}\nСотрудников: ${result.imported.employees}`)
-        window.location.reload()
-    } else {
-        alert(`❌ Ошибка импорта: ${result.error}`)
-    }
-}
 
-    // 🔧 ФИКС: Drag-and-drop с учётом pixelsPerDay
+    // Drag-and-drop
     const handleDragStart = (e, group) => {
         e.preventDefault()
         e.stopPropagation()
@@ -219,7 +315,6 @@ const handleXMLUpload = async (event) => {
         const newEnd = new Date(group.endDate)
         newEnd.setDate(newEnd.getDate() + deltaDays)
         
-        // Проверка границ
         const minBound = new Date(minDate)
         minBound.setDate(minDate.getDate() + 1)
         const maxBound = new Date(maxDate)
@@ -268,6 +363,18 @@ const handleXMLUpload = async (event) => {
             <div className="glass-card" style={{ padding: '60px 20px', textAlign: 'center' }}>
                 <AlertCircle size={24} color="var(--accent-blue)" style={{ marginBottom: 12 }} />
                 <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>Нет групп для отображения. Создайте учебную группу.</p>
+                <button onClick={manualSync} disabled={isSyncing} style={{
+                    marginTop: '16px',
+                    padding: '8px 20px',
+                    fontSize: 13,
+                    background: 'rgba(77, 166, 255, 0.2)',
+                    color: 'var(--accent-blue)',
+                    border: '1px solid rgba(77, 166, 255, 0.3)',
+                    borderRadius: '30px',
+                    cursor: 'pointer'
+                }}>
+                    {isSyncing ? 'Синхронизация...' : '🔄 Синхронизировать с бэкэндом'}
+                </button>
             </div>
         )
     }
@@ -291,9 +398,24 @@ const handleXMLUpload = async (event) => {
                             ⚠️ Конфликты
                         </span>
                     )}
+                    {lastSyncTime && (
+                        <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
+                            Синх. {lastSyncTime.toLocaleTimeString()}
+                        </span>
+                    )}
                 </div>
                
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <button onClick={manualSync} disabled={isSyncing} style={{
+                        padding: '6px 14px', fontSize: 12, fontWeight: 500,
+                        background: 'rgba(77, 166, 255, 0.2)', color: 'var(--accent-blue)',
+                        border: '1px solid rgba(77, 166, 255, 0.3)', borderRadius: '30px',
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                    }}>
+                        <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
+                        {isSyncing ? 'Синхр...' : 'Синхр.'}
+                    </button>
+                    
                     <input type="file" accept=".xml" id="xml-upload" style={{ display: 'none' }} onChange={handleXMLUpload} />
                     <button onClick={() => document.getElementById('xml-upload').click()} style={{
                         padding: '6px 14px', fontSize: 12, fontWeight: 500,
@@ -303,6 +425,7 @@ const handleXMLUpload = async (event) => {
                     }}>
                         <Upload size={14} /> Загрузить XML
                     </button>
+                    
                     <button onClick={exportToPDF} style={{
                         padding: '6px 14px', fontSize: 12, fontWeight: 500,
                         background: 'rgba(77, 166, 255, 0.2)', color: 'var(--accent-blue)',
@@ -442,7 +565,6 @@ const handleXMLUpload = async (event) => {
                                         onMouseDown={(e) => handleDragStart(e, group)}
                                         onClick={(e) => { e.stopPropagation(); onGroupClick?.(group.id) }}
                                     >
-                                        {/* Индикатор прогресса внутри полосы */}
                                         <div style={{
                                             position: 'absolute',
                                             left: 0,
@@ -453,7 +575,6 @@ const handleXMLUpload = async (event) => {
                                             transition: 'width 0.3s'
                                         }} />
                                         
-                                        {/* Текст на полосе */}
                                         <div style={{
                                             position: 'relative',
                                             padding: '0 12px',
@@ -512,7 +633,7 @@ const handleXMLUpload = async (event) => {
                 textAlign: 'center',
                 background: 'rgba(0,0,0,0.15)'
             }}>
-                💡 Перетащите полосу для изменения дат | Нажмите ✏️ для редактирования прогресса | Кликните по полосе для деталей
+                💡 Перетащите полосу для изменения дат | Нажмите ✏️ для редактирования прогресса | Данные автоматически синхронизируются
             </div>
         </div>
     )
