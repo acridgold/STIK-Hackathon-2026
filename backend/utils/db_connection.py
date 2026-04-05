@@ -6,7 +6,6 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-
 _pool = None
 
 def _get_pool():
@@ -20,7 +19,7 @@ def _get_pool():
                 minconn=1,
                 maxconn=10,
                 host=os.getenv("DB_HOST", "localhost"),
-                port=int(os.getenv("DB_PORT", 5432)),
+                port=int(os.getenv("DB_PORT", 5433)),
                 dbname=os.getenv("DB_NAME", "global_erp_db"),
                 user=os.getenv("DB_USER", "postgres"),
                 password=os.getenv("DB_PASSWORD", "postgres"),

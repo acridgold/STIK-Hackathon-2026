@@ -27,6 +27,14 @@ CREATE TABLE courses (
                          price_per_person NUMERIC(12, 2) NOT NULL
 );
 
+CREATE TABLE course_price_history (
+    id SERIAL PRIMARY KEY,
+    course_id INT REFERENCES courses(course_id) ON DELETE CASCADE,
+    price NUMERIC(12,2) NOT NULL,
+    valid_from DATE NOT NULL,
+    valid_to DATE
+);
+
 -- 4. Таблица "Спецификация" (п. 2.2.5)
 CREATE TABLE specifications (
                                 document_id SERIAL PRIMARY KEY,
@@ -55,47 +63,83 @@ CREATE TABLE group_participants (
                                     UNIQUE(group_id, employee_id)
 );
 
--- ========================================================
--- ПРЕДСТАВЛЕНИЯ (VIEWS) ДЛЯ АВТОМАТИЧЕСКИХ ВЫЧИСЛЕНИЙ
--- ========================================================
+---- ========================================================
+---- ПРЕДСТАВЛЕНИЯ (VIEWS) ДЛЯ АВТОМАТИЧЕСКИХ ВЫЧИСЛЕНИЙ
+---- ========================================================
+--
+---- Расчет агрегатов по группам (кол-во человек, стоимость, средний прогресс)
+--CREATE OR REPLACE VIEW v_study_groups_summary AS
+--SELECT
+--    sg.group_id,
+--    c.course_name,
+--    sg.start_date,
+--    sg.end_date,
+--    sg.status,
+--    sg.actual_price_per_person,
+--    COUNT(gp.participant_id) AS participants_count,
+--    (COUNT(gp.participant_id) * sg.actual_price_per_person) AS total_group_cost,
+--    COALESCE(AVG(gp.completion_percentage), 0) AS average_progress,
+--    sg.specification_id
+--FROM
+--    study_groups sg
+--        JOIN
+--    courses c ON sg.course_id = c.course_id
+--        LEFT JOIN
+--    group_participants gp ON sg.group_id = gp.group_id
+--GROUP BY
+--    sg.group_id, c.course_name, sg.start_date, sg.end_date, sg.status, sg.actual_price_per_person;
+--
 
--- Расчет агрегатов по группам (кол-во человек, стоимость, средний прогресс)
-CREATE OR REPLACE VIEW v_study_groups_summary AS
+CREATE OR REPLACE VIEW v_employees_full AS
 SELECT
-    sg.group_id,
+    e.employee_id AS id,
+    e.full_name,
+    e.company_id,
+    c.company_name,
+    e.email
+FROM employees e
+LEFT JOIN companies c ON e.company_id = c.company_id;
+
+
+CREATE OR REPLACE VIEW v_study_groups_full AS
+SELECT
+    sg.group_id AS id,
+    sg.course_id,
     c.course_name,
     sg.start_date,
     sg.end_date,
     sg.status,
+    sg.specification_id,
     sg.actual_price_per_person,
-    COUNT(gp.participant_id) AS participants_count,
-    (COUNT(gp.participant_id) * sg.actual_price_per_person) AS total_group_cost,
-    COALESCE(AVG(gp.completion_percentage), 0) AS average_progress,
-    sg.specification_id
-FROM
-    study_groups sg
-        JOIN
-    courses c ON sg.course_id = c.course_id
-        LEFT JOIN
-    group_participants gp ON sg.group_id = gp.group_id
-GROUP BY
-    sg.group_id, c.course_name, sg.start_date, sg.end_date, sg.status, sg.actual_price_per_person;
+    COUNT(gp.participant_id) AS participant_count,
+    COALESCE(JSON_AGG(
+        JSON_BUILD_OBJECT(
+            'id', gp.participant_id,
+            'employee_id', gp.employee_id,
+            'progress', gp.completion_percentage
+        )
+    ) FILTER (WHERE gp.participant_id IS NOT NULL), '[]') AS participants
+FROM study_groups sg
+JOIN courses c ON sg.course_id = c.course_id
+LEFT JOIN group_participants gp ON sg.group_id = gp.group_id
+GROUP BY sg.group_id, c.course_name;
 
--- Расчет итогов Спецификации (Сумма без НДС, НДС 22%, Итого)
-CREATE OR REPLACE VIEW v_specifications_summary AS
-SELECT
-    s.document_id,
-    s.doc_number,
-    s.doc_date,
-    comp.company_name,
-    COALESCE(SUM(vsg.total_group_cost), 0) AS total_without_vat,
-    COALESCE(SUM(vsg.total_group_cost), 0) * 0.22 AS vat_amount,
-    COALESCE(SUM(vsg.total_group_cost), 0) * 1.22 AS total_with_vat
-FROM
-    specifications s
-        JOIN
-    companies comp ON s.company_id = comp.company_id
-        LEFT JOIN
-    v_study_groups_summary vsg ON s.document_id = vsg.specification_id
-GROUP BY
-    s.document_id, s.doc_number, s.doc_date, comp.company_name;
+--
+---- Расчет итогов Спецификации (Сумма без НДС, НДС 22%, Итого)
+--CREATE OR REPLACE VIEW v_specifications_summary AS
+--SELECT
+--    s.document_id,
+--    s.doc_number,
+--    s.doc_date,
+--    comp.company_name,
+--    COALESCE(SUM(vsg.total_group_cost), 0) AS total_without_vat,
+--    COALESCE(SUM(vsg.total_group_cost), 0) * 0.22 AS vat_amount,
+--    COALESCE(SUM(vsg.total_group_cost), 0) * 1.22 AS total_with_vat
+--FROM
+--    specifications s
+--        JOIN
+--    companies comp ON s.company_id = comp.company_id
+--        LEFT JOIN
+--    v_study_groups_summary vsg ON s.document_id = vsg.specification_id
+--GROUP BY
+--    s.document_id, s.doc_number, s.doc_date, comp.company_name;
