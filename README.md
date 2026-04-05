@@ -19,7 +19,7 @@ https://acridgold.github.io/STIK-Hackathon-2026/
 
 2. **Откройте приложение:**
    * **Фронтенд**: http://localhost:5173
-   * **Бэкенд (API)**: http://localhost:5000
+   * **Бэкенд (API)**: http://localhost:8080
    * **База данных**: localhost:5433 (PostgreSQL)
 
 3. **Остановка проекта**
