@@ -28,7 +28,7 @@ class GroupRepository(GroupRepositoryInterface):
         """
         Ожидаемые ключи data:
           course_id, start_date, end_date, status (опционально), specification_id (опционально).
-        actual_price_per_person берётся из таблицы courses автоматически.
+        actual_price_per_person берётся из таблицы courses.
         """
         with get_connection() as conn:
             with conn.cursor() as cur:
