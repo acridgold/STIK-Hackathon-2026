@@ -12,16 +12,16 @@ services:
     ports:
       - "5433:5432"
 
-#  backend:
-#    build: ./backend
-#    container_name: erp_backend_container
-#    environment:
-#      - DATABASE_URL=postgresql://postgres:postgres@db:5432/global_erp_db
-#    ports:
-#      - "5000:5000"
-#    depends_on:
-#      - db
-#    restart: always
+  backend:
+    build: ./backend
+    container_name: erp_backend_container
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/global_erp_db
+    ports:
+      - "5000:5000"
+    depends_on:
+      - db
+    restart: always
 
 volumes:
   postgres_data:
