@@ -1,11 +1,17 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api'
+// Очищаем URL от лишних слэшей в конце и убеждаемся, что база готова
+const rawUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const BASE_URL = rawUrl.replace(/\/$/, '');
 
 async function request(method, path, body) {
-    const res = await fetch(`${BASE_URL}${path}`, {
+    // Если путь не начинается с /api, добавляем его сами для консистентности
+    const fullPath = path.startsWith('/api') ? path : `/api${path}`;
+
+    const res = await fetch(`${BASE_URL}${fullPath}`, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: body ? JSON.stringify(body) : undefined,
     })
+
     if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.message || `HTTP ${res.status}`)
@@ -58,9 +64,16 @@ export const api = {
         const form = new FormData()
         form.append('file', file)
         form.append('type', type)   // 'courses' | 'employees' | 'groups'
-        return fetch(`${BASE_URL}/xml/upload`, { method: 'POST', body: form })
-            .then(r => r.json())
+
+        // Тут тоже добавляем /api, чтобы путь был /api/xml/upload
+        return fetch(`${BASE_URL}/api/xml/upload`, {
+            method: 'POST',
+            body: form
+        }).then(res => {
+            if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+            return res.json();
+        });
     }
 }
 
-export default api
+export default api;
