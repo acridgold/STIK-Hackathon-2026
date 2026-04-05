@@ -8,7 +8,7 @@ import { useStore, calcGroupProgress, calcSpecTotals } from '../store/useStore.j
 import StatusBadge from '../components/ui/StatusBadge.jsx'
 import PageHeader from '../components/ui/PageHeader.jsx'
 import GanttChart from '../components/GanttChart.jsx'
-import XMLSyncPanel from '../components/XMLSyncPanel.jsx'
+
 
 const fmt = (n) => new Intl.NumberFormat('ru-RU').format(Math.round(n))
 
@@ -109,7 +109,7 @@ export default function Dashboard() {
                     </div>
                 ))}
             </div>
-            <XMLSyncPanel />
+            
             <div style={{ marginBottom: 24 }}>
                 <GanttChart 
                     groups={groups} 

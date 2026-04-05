@@ -1,54 +1,58 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
-import { Calendar, AlertCircle, Download, Upload } from 'lucide-react'
+import { Calendar, AlertCircle, Download, Upload, Edit2, Check, X } from 'lucide-react'
 import { useStore } from '../store/useStore.js'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
+import { uploadXMLToBackend } from '../components/api/xmlService.js'
 
 export default function GanttChart({ groups = [], courses = [], onGroupClick }) {
     const [viewMode, setViewMode] = useState('month')
-    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
+    const [draggingGroup, setDraggingGroup] = useState(null)
+    const [dragStart, setDragStart] = useState({ x: 0, originalStartDate: null })
+    const [editingGroup, setEditingGroup] = useState(null)
+    const [editProgress, setEditProgress] = useState(0)
     const scrollRef = useRef(null)
+    const { updateGroup, updateParticipantProgress } = useStore()
 
-    useEffect(() => {
-        const handleResize = () => {
-            setIsMobile(window.innerWidth <= 768)
-        }
-
-        window.addEventListener('resize', handleResize)
-        return () => window.removeEventListener('resize', handleResize)
-    }, [])
-
-    // Получение названия курса
     const getCourseName = (courseId) => {
         const course = courses.find(c => c.id === courseId)
         return course ? course.name : 'Курс не выбран'
     }
 
-    // Расчет прогресса группы
     const calcProgress = (group) => {
         if (!group.participants?.length) return 0
         const sum = group.participants.reduce((acc, p) => acc + (p.progress || 0), 0)
         return Math.round(sum / group.participants.length)
     }
 
-    // Проверка конфликтов
+    const updateGroupProgress = (groupId, newProgress) => {
+        const group = groups.find(g => g.id === groupId)
+        if (!group?.participants) return
+        group.participants.forEach(participant => {
+            updateParticipantProgress(groupId, participant.id, newProgress)
+        })
+    }
+
+    const updateGroupDates = (groupId, newStartDate, newEndDate) => {
+        updateGroup(groupId, { 
+            startDate: newStartDate, 
+            endDate: newEndDate 
+        })
+    }
+
     const hasConflict = (group, allGroups) => {
         const currentEmployees = new Set(group.participants?.map(p => p.employeeId) || [])
         if (currentEmployees.size === 0) return false
-
         return allGroups.some(other => {
             if (other.id === group.id) return false
             const otherEmployees = new Set(other.participants?.map(p => p.employeeId) || [])
             if (otherEmployees.size === 0) return false
-
             const aStart = new Date(group.startDate)
             const aEnd = new Date(group.endDate)
             const bStart = new Date(other.startDate)
             const bEnd = new Date(other.endDate)
             const datesOverlap = aStart <= bEnd && bStart <= aEnd
-
             if (!datesOverlap) return false
-
             for (let emp of currentEmployees) {
                 if (otherEmployees.has(emp)) return true
             }
@@ -56,15 +60,26 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
         })
     }
 
-    // Определение всех дат для шкалы
-    const { allDates, minDate, maxDate } = useMemo(() => {
+    // Определение временной шкалы
+    const { allDates, minDate, maxDate, totalDays, pixelsPerDay } = useMemo(() => {
         if (!groups.length) {
             const now = new Date()
-            const start = new Date(now.getFullYear(), now.getMonth(), 1)
+            const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
             const end = new Date(now.getFullYear(), now.getMonth() + 3, 0)
-            return { allDates: [], minDate: start, maxDate: end }
+            const dates = []
+            let current = new Date(start)
+            while (current <= end) {
+                dates.push(new Date(current))
+                if (viewMode === 'week') current.setDate(current.getDate() + 7)
+                else if (viewMode === 'month') current.setMonth(current.getMonth() + 1)
+                else current.setMonth(current.getMonth() + 3)
+            }
+            const total = Math.ceil((end - start) / (1000 * 60 * 60 * 24))
+            const columnWidth = viewMode === 'week' ? 100 : viewMode === 'month' ? 120 : 150
+            const pixelsPerDayCalc = columnWidth / (viewMode === 'week' ? 7 : viewMode === 'month' ? 30 : 90)
+            return { allDates: dates, minDate: start, maxDate: end, totalDays: total, pixelsPerDay: pixelsPerDayCalc }
         }
-        
+       
         let min = new Date(groups[0].startDate)
         let max = new Date(groups[0].endDate)
         groups.forEach(g => {
@@ -73,69 +88,49 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
             if (start < min) min = start
             if (end > max) max = end
         })
-        
-        // Добавляем отступ по 30 дней
-        const paddedMin = new Date(min)
-        paddedMin.setDate(min.getDate() - 30)
-        const paddedMax = new Date(max)
-        paddedMax.setDate(max.getDate() + 30)
-        
-        // Генерируем массив дат для колонок
+       
+        const paddedMin = new Date(min.getFullYear(), min.getMonth() - 1, 1)
+        const paddedMax = new Date(max.getFullYear(), max.getMonth() + 2, 0)
+       
         const dates = []
         let current = new Date(paddedMin)
         while (current <= paddedMax) {
             dates.push(new Date(current))
-            if (viewMode === 'week') {
-                current.setDate(current.getDate() + 7)
-            } else if (viewMode === 'month') {
-                current.setMonth(current.getMonth() + 1)
-            } else {
-                current.setMonth(current.getMonth() + 3)
-            }
+            if (viewMode === 'week') current.setDate(current.getDate() + 7)
+            else if (viewMode === 'month') current.setMonth(current.getMonth() + 1)
+            else current.setMonth(current.getMonth() + 3)
         }
+       
+        const total = Math.ceil((paddedMax - paddedMin) / (1000 * 60 * 60 * 24))
+        const columnWidth = viewMode === 'week' ? 100 : viewMode === 'month' ? 120 : 150
+        const pixelsPerDayCalc = columnWidth / (viewMode === 'week' ? 7 : viewMode === 'month' ? 30 : 90)
         
-        return { allDates: dates, minDate: paddedMin, maxDate: paddedMax }
+        return { allDates: dates, minDate: paddedMin, maxDate: paddedMax, totalDays: total, pixelsPerDay: pixelsPerDayCalc }
     }, [groups, viewMode])
 
-    // Ширина колонки в пикселях
     const columnWidth = viewMode === 'week' ? 100 : viewMode === 'month' ? 120 : 150
-    
-    // Общая ширина контейнера
-    const totalWidth = allDates.length * columnWidth + 250 // 250px - ширина левой колонки
+    const totalWidth = allDates.length * columnWidth + 280
 
-    // Позиция группы (в пикселях, а не процентах!)
+    // Позиция группы
     const getGroupPosition = (group) => {
         const groupStart = new Date(group.startDate)
         const groupEnd = new Date(group.endDate)
         
-        // Находим индекс начальной колонки
-        let startIndex = 0
-        let endIndex = allDates.length - 1
+        // Смещение в днях от minDate
+        const startOffsetDays = Math.max(0, (groupStart - minDate) / (1000 * 60 * 60 * 24))
+        const durationDays = Math.max(1, (groupEnd - groupStart) / (1000 * 60 * 60 * 24))
         
-        for (let i = 0; i < allDates.length; i++) {
-            const colDate = allDates[i]
-            const nextColDate = allDates[i + 1] || new Date(colDate.getTime() + 30 * 24 * 60 * 60 * 1000)
-            
-            if (groupStart >= colDate && groupStart < nextColDate) {
-                startIndex = i
-            }
-            if (groupEnd >= colDate && groupEnd < nextColDate) {
-                endIndex = i
-                break
-            }
-        }
+        const left = startOffsetDays * pixelsPerDay
+        const width = durationDays * pixelsPerDay
         
-        const left = startIndex * columnWidth
-        const width = (endIndex - startIndex + 1) * columnWidth
-        
-        return { left, width }
+        return { left: Math.max(0, left), width: Math.max(width, 30) }
     }
 
-    // Форматирование заголовка колонки
     const getColumnLabel = (date) => {
         if (viewMode === 'week') {
-            const weekNum = Math.ceil(date.getDate() / 7)
-            return `${weekNum}/${date.getMonth() + 1}`
+            const endDate = new Date(date)
+            endDate.setDate(date.getDate() + 6)
+            return `${date.getDate()}/${date.getMonth() + 1}`
         } else if (viewMode === 'month') {
             return date.toLocaleString('ru', { month: 'short' })
         } else {
@@ -144,17 +139,11 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
         }
     }
 
-    // Экспорт в PDF
     const exportToPDF = async () => {
         const element = document.getElementById('gantt-container')
         if (!element) return
-        
         try {
-            const canvas = await html2canvas(element, {
-                scale: 2,
-                backgroundColor: '#1a1a2e',
-                logging: false
-            })
+            const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#1a1a2e', logging: false })
             const imgData = canvas.toDataURL('image/png')
             const pdf = new jsPDF('landscape')
             pdf.addImage(imgData, 'PNG', 5, 5, 290, 150)
@@ -165,201 +154,198 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
         }
     }
 
-    // Скролл к текущей дате
     useEffect(() => {
-        if (scrollRef.current && allDates.length > 0) {
+        if (scrollRef.current && minDate && maxDate) {
             const today = new Date()
-            let todayIndex = 0
-            for (let i = 0; i < allDates.length; i++) {
-                if (allDates[i] <= today && (!allDates[i + 1] || allDates[i + 1] > today)) {
-                    todayIndex = i
-                    break
+            if (today >= minDate && today <= maxDate) {
+                const todayOffsetDays = (today - minDate) / (1000 * 60 * 60 * 24)
+                const scrollTo = todayOffsetDays * pixelsPerDay - 300
+                if (scrollTo > 0) {
+                    scrollRef.current.scrollLeft = scrollTo
                 }
             }
-            const scrollTo = todayIndex * columnWidth - 200
-            if (scrollTo > 0) {
-                scrollRef.current.scrollLeft = scrollTo
-            }
         }
-    }, [allDates, columnWidth])
-       const handleXMLUpload = async (event) => {
+    }, [minDate, maxDate, pixelsPerDay])
+
+
+const handleXMLUpload = async (event) => {
     const file = event.target.files[0]
     if (!file) return
     
+    // Отправка на бэкэнд
+    const uploadResult = await uploadXMLToBackend(file, 'groups')
+    if (uploadResult.success) {
+        console.log('✅ XML отправлен на бэкэнд')
+    } else {
+        console.warn('⚠️ Бэкэнд не доступен:', uploadResult.error)
+    }
+    
+    // Импорт в локальное хранилище
     const text = await file.text()
     const result = useStore.getState().importFromXML(text)
     
     if (result.success) {
-        alert(`✅ Импорт завершён!\nГрупп: ${result.imported.groups}\nКурсов: ${result.imported.courses}\nСотрудников: ${result.imported.employees}\nКомпаний: ${result.imported.companies}`)
+        alert(`✅ Импорт завершён!\nГрупп: ${result.imported.groups}\nКурсов: ${result.imported.courses}\nСотрудников: ${result.imported.employees}`)
         window.location.reload()
     } else {
         alert(`❌ Ошибка импорта: ${result.error}`)
     }
 }
+
+    // 🔧 ФИКС: Drag-and-drop с учётом pixelsPerDay
+    const handleDragStart = (e, group) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setDraggingGroup(group.id)
+        setDragStart({ 
+            x: e.clientX, 
+            originalStartDate: new Date(group.startDate) 
+        })
+    }
+
+    const handleDragMove = (e) => {
+        if (!draggingGroup) return
+        
+        const deltaX = e.clientX - dragStart.x
+        const deltaDays = Math.round(deltaX / pixelsPerDay)
+        
+        if (deltaDays === 0) return
+        
+        const group = groups.find(g => g.id === draggingGroup)
+        if (!group) return
+        
+        const newStart = new Date(dragStart.originalStartDate)
+        newStart.setDate(newStart.getDate() + deltaDays)
+        const newEnd = new Date(group.endDate)
+        newEnd.setDate(newEnd.getDate() + deltaDays)
+        
+        // Проверка границ
+        const minBound = new Date(minDate)
+        minBound.setDate(minDate.getDate() + 1)
+        const maxBound = new Date(maxDate)
+        maxBound.setDate(maxDate.getDate() - 1)
+        
+        if (newStart >= minBound && newEnd <= maxBound) {
+            updateGroupDates(
+                draggingGroup, 
+                newStart.toISOString().split('T')[0], 
+                newEnd.toISOString().split('T')[0]
+            )
+            setDragStart({ 
+                x: e.clientX, 
+                originalStartDate: newStart 
+            })
+        }
+    }
+
+    const handleDragEnd = () => {
+        setDraggingGroup(null)
+    }
+
+    const startEditing = (group) => {
+        setEditingGroup(group.id)
+        setEditProgress(calcProgress(group))
+    }
+
+    const saveProgress = (groupId) => {
+        updateGroupProgress(groupId, editProgress)
+        setEditingGroup(null)
+    }
+
+    useEffect(() => {
+        if (draggingGroup) {
+            window.addEventListener('mousemove', handleDragMove)
+            window.addEventListener('mouseup', handleDragEnd)
+            return () => {
+                window.removeEventListener('mousemove', handleDragMove)
+                window.removeEventListener('mouseup', handleDragEnd)
+            }
+        }
+    }, [draggingGroup, dragStart, pixelsPerDay])
+
     if (!groups.length) {
         return (
             <div className="glass-card" style={{ padding: '60px 20px', textAlign: 'center' }}>
                 <AlertCircle size={24} color="var(--accent-blue)" style={{ marginBottom: 12 }} />
-                <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
-                    Нет групп для отображения. Создайте учебную группу.
-                </p>
+                <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>Нет групп для отображения. Создайте учебную группу.</p>
             </div>
         )
     }
 
     return (
-        <div id="gantt-container" className="glass-card gantt-container" style={{ padding: 0, overflow: 'hidden' }}>
-            {/* Header */}
+        <div id="gantt-container" className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{
-                padding: isMobile ? '12px 14px' : '16px 20px',
+                padding: '16px 20px',
                 borderBottom: '1px solid var(--border-subtle)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 flexWrap: 'wrap',
-                gap: isMobile ? '8px' : '12px'
+                gap: '12px'
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Calendar size={isMobile ? 16 : 18} color="var(--accent-blue)" />
-                    <span style={{ fontSize: isMobile ? 12 : 14, fontWeight: 600 }}>Диаграмма Ганта</span>
+                    <Calendar size={18} color="var(--accent-blue)" />
+                    <span style={{ fontSize: 14, fontWeight: 600 }}>Диаграмма Ганта</span>
                     {groups.some(g => hasConflict(g, groups)) && (
-                        <span style={{
-                            fontSize: 10,
-                            background: 'rgba(239, 68, 68, 0.2)',
-                            color: '#ef4444',
-                            padding: '2px 6px',
-                            borderRadius: '20px'
-                        }}>
+                        <span style={{ fontSize: 11, background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', padding: '2px 8px', borderRadius: '20px' }}>
                             ⚠️ Конфликты
                         </span>
                     )}
                 </div>
-                
-                <div style={{ 
-                    display: 'flex', 
-                    gap: isMobile ? '6px' : '12px', 
-                    alignItems: 'center', 
-                    flexWrap: 'wrap',
-                    justifyContent: 'flex-end',
-                }}>
-                        <input
-        type="file"
-        accept=".xml"
-        id="xml-upload"
-        style={{ display: 'none' }}
-        onChange={handleXMLUpload}
-    />
-    <button
-        onClick={() => document.getElementById('xml-upload').click()}
-        style={{
-            padding: isMobile ? '5px 10px' : '6px 14px',
-            fontSize: isMobile ? 10 : 12,
-            fontWeight: 500,
-            background: 'rgba(77, 166, 255, 0.2)',
-            color: 'var(--accent-blue)',
-            border: '1px solid rgba(77, 166, 255, 0.3)',
-            borderRadius: '30px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            whiteSpace: 'nowrap',
-        }}
-    >
-        <Upload size={isMobile ? 12 : 14} />
-        {!isMobile && 'Загрузить XML'}
-    </button>
-                    <button
-                        onClick={exportToPDF}
-                        style={{
-                            padding: isMobile ? '5px 10px' : '6px 14px',
-                            fontSize: isMobile ? 10 : 12,
-                            fontWeight: 500,
-                            background: 'rgba(77, 166, 255, 0.2)',
-                            color: 'var(--accent-blue)',
-                            border: '1px solid rgba(77, 166, 255, 0.3)',
-                            borderRadius: '30px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            whiteSpace: 'nowrap',
-                        }}
-                    >
-                        <Download size={isMobile ? 12 : 14} />
-                        {!isMobile && 'Экспорт PDF'}
+               
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input type="file" accept=".xml" id="xml-upload" style={{ display: 'none' }} onChange={handleXMLUpload} />
+                    <button onClick={() => document.getElementById('xml-upload').click()} style={{
+                        padding: '6px 14px', fontSize: 12, fontWeight: 500,
+                        background: 'rgba(77, 166, 255, 0.2)', color: 'var(--accent-blue)',
+                        border: '1px solid rgba(77, 166, 255, 0.3)', borderRadius: '30px',
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                    }}>
+                        <Upload size={14} /> Загрузить XML
                     </button>
-                    
-                    <div style={{ display: 'flex', gap: isMobile ? '4px' : '8px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '40px' }}>
+                    <button onClick={exportToPDF} style={{
+                        padding: '6px 14px', fontSize: 12, fontWeight: 500,
+                        background: 'rgba(77, 166, 255, 0.2)', color: 'var(--accent-blue)',
+                        border: '1px solid rgba(77, 166, 255, 0.3)', borderRadius: '30px',
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                    }}>
+                        <Download size={14} /> Экспорт PDF
+                    </button>
+                   
+                    <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '40px' }}>
                         {['week', 'month', 'quarter'].map(mode => (
-                            <button
-                                key={mode}
-                                onClick={() => setViewMode(mode)}
-                                style={{
-                                    padding: isMobile ? '3px 8px' : '4px 12px',
-                                    fontSize: isMobile ? 10 : 12,
-                                    fontWeight: 500,
-                                    background: viewMode === mode ? 'var(--accent-blue)' : 'transparent',
-                                    color: viewMode === mode ? '#fff' : 'var(--text-secondary)',
-                                    border: 'none',
-                                    borderRadius: '30px',
-                                    cursor: 'pointer',
-                                    whiteSpace: 'nowrap',
-                                }}
-                            >
-                                {mode === 'week' ? 'Неделя' : mode === 'month' ? 'Месяц' : 'Кв.'}
+                            <button key={mode} onClick={() => setViewMode(mode)} style={{
+                                padding: '4px 12px', fontSize: 12, fontWeight: 500,
+                                background: viewMode === mode ? 'var(--accent-blue)' : 'transparent',
+                                color: viewMode === mode ? '#fff' : 'var(--text-secondary)',
+                                border: 'none', borderRadius: '30px', cursor: 'pointer'
+                            }}>
+                                {mode === 'week' ? 'Неделя' : mode === 'month' ? 'Месяц' : 'Квартал'}
                             </button>
                         ))}
                     </div>
                 </div>
             </div>
 
-            {/* Область диаграммы с горизонтальным скроллом */}
-            <div 
-                ref={scrollRef} 
-                style={{ 
-                    overflowX: 'auto', 
-                    overflowY: 'auto', 
-                    maxHeight: '500px',
-                    position: 'relative'
-                }}
-            >
+            <div ref={scrollRef} style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '500px', position: 'relative' }}>
                 <div style={{ width: totalWidth, position: 'relative' }}>
                     {/* Заголовки колонок */}
-                    <div style={{ 
-                        display: 'flex', 
-                        borderBottom: '1px solid var(--border-subtle)', 
-                        background: 'rgba(0,0,0,0.4)', 
-                        position: 'sticky', 
-                        top: 0, 
-                        zIndex: 10 
-                    }}>
-                        <div style={{ 
-                            width: '250px', 
-                            flexShrink: 0, 
-                            padding: '12px 16px', 
-                            fontWeight: 600, 
-                            fontSize: 13, 
-                            borderRight: '1px solid var(--border-subtle)',
-                            background: 'rgba(0,0,0,0.4)'
-                        }}>
+                    <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', background: 'rgba(0,0,0,0.4)', position: 'sticky', top: 0, zIndex: 10 }}>
+                        <div style={{ width: '280px', flexShrink: 0, padding: '12px 16px', fontWeight: 600, fontSize: 13, borderRight: '1px solid var(--border-subtle)', background: 'rgba(0,0,0,0.4)' }}>
                             Учебная группа / Курс
                         </div>
                         <div style={{ display: 'flex' }}>
                             {allDates.map((date, i) => (
-                                <div
-                                    key={i}
-                                    style={{
-                                        width: columnWidth,
-                                        flexShrink: 0,
-                                        padding: '12px 4px',
-                                        textAlign: 'center',
-                                        fontSize: 11,
-                                        fontWeight: 500,
-                                        color: 'var(--text-tertiary)',
-                                        borderRight: '1px solid var(--border-subtle)'
-                                    }}
-                                >
+                                <div key={i} style={{
+                                    width: columnWidth,
+                                    flexShrink: 0,
+                                    padding: '12px 4px',
+                                    textAlign: 'center',
+                                    fontSize: 11,
+                                    fontWeight: 500,
+                                    color: 'var(--text-tertiary)',
+                                    borderRight: '1px solid var(--border-subtle)'
+                                }}>
                                     {getColumnLabel(date)}
                                 </div>
                             ))}
@@ -373,54 +359,64 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
                         const { left, width } = getGroupPosition(group)
                         const courseName = getCourseName(group.courseId)
                         const statusColor = group.status === 'active' ? '#34d399' : group.status === 'done' ? '#6b7280' : '#fbbf24'
+                        const isEditing = editingGroup === group.id
+                        const isDragging = draggingGroup === group.id
 
                         return (
-                            <div
-                                key={group.id}
-                                style={{
-                                    display: 'flex',
-                                    borderBottom: '1px solid var(--border-subtle)',
-                                    minHeight: '64px',
-                                    alignItems: 'center',
-                                    cursor: 'pointer',
-                                    transition: 'background 0.2s'
-                                }}
-                                onClick={() => onGroupClick?.(group.id)}
-                                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
-                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                            >
-                                {/* Левая колонка с информацией */}
+                            <div key={group.id} style={{
+                                display: 'flex',
+                                borderBottom: '1px solid var(--border-subtle)',
+                                minHeight: '70px',
+                                alignItems: 'center',
+                                transition: 'background 0.2s',
+                                opacity: isDragging ? 0.6 : 1,
+                                background: isDragging ? 'rgba(77, 166, 255, 0.1)' : 'transparent'
+                            }}>
+                                {/* Левая колонка */}
                                 <div style={{
-                                    width: '250px',
+                                    width: '280px',
                                     flexShrink: 0,
                                     padding: '12px 16px',
                                     borderRight: '1px solid var(--border-subtle)',
                                     background: isConflict ? 'rgba(239, 68, 68, 0.05)' : 'transparent'
                                 }}>
-                                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>
-                                        {courseName}
+                                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span>{courseName}</span>
+                                        <button onClick={() => startEditing(group)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '4px' }} title="Редактировать прогресс">
+                                            <Edit2 size={12} />
+                                        </button>
                                     </div>
-                                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-                                        {group.participants?.length || 0} участ. | {group.startDate} — {group.endDate}
-                                    </div>
-                                    <div style={{ fontSize: 11, marginTop: 4, color: statusColor }}>
-                                        {group.status === 'active' ? '🟢 В процессе' : group.status === 'done' ? '✅ Завершено' : '⏳ Планируется'}
-                                    </div>
+                                    
+                                    {isEditing ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: 8 }}>
+                                            <input type="range" min="0" max="100" value={editProgress} onChange={(e) => setEditProgress(Number(e.target.value))} style={{ flex: 1, height: '4px' }} />
+                                            <span style={{ fontSize: 11, minWidth: '35px' }}>{editProgress}%</span>
+                                            <button onClick={() => saveProgress(group.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#34d399' }}><Check size={14} /></button>
+                                            <button onClick={() => setEditingGroup(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}><X size={14} /></button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                                                {group.participants?.length || 0} участ. | {group.startDate} — {group.endDate}
+                                            </div>
+                                            <div style={{ fontSize: 11, marginTop: 4, color: statusColor }}>
+                                                {group.status === 'active' ? '🟢 В процессе' : group.status === 'done' ? '✅ Завершено' : '⏳ Планируется'}
+                                            </div>
+                                            <div style={{ marginTop: 6 }}>
+                                                <div className="progress-bar" style={{ height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px' }}>
+                                                    <div className="progress-bar-fill" style={{ width: `${progress}%`, height: '4px', background: statusColor, borderRadius: '4px' }} />
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
 
-                                {/* Область с сеткой и полосами */}
-                                <div style={{ position: 'relative', height: '80px', flex: 1 }}>
+                                {/* Правая область - таймлайн */}
+                                <div style={{ position: 'relative', height: '70px', flex: 1 }}>
                                     {/* Вертикальные линии сетки */}
                                     <div style={{ display: 'flex', position: 'absolute', inset: 0, pointerEvents: 'none' }}>
                                         {allDates.map((_, i) => (
-                                            <div
-                                                key={i}
-                                                style={{
-                                                    width: columnWidth,
-                                                    borderRight: '1px solid rgba(255,255,255,0.05)',
-                                                    height: '100%'
-                                                }}
-                                            />
+                                            <div key={i} style={{ width: columnWidth, borderRight: '1px solid rgba(255,255,255,0.05)', height: '100%' }} />
                                         ))}
                                     </div>
 
@@ -428,9 +424,9 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
                                     <div
                                         style={{
                                             position: 'absolute',
-                                            left: left,
-                                            width: width > 5 ? width : 5,
-                                            top: '20px',
+                                            left: `${left}px`,
+                                            width: `${width}px`,
+                                            top: '15px',
                                             height: '40px',
                                             background: isConflict 
                                                 ? 'linear-gradient(90deg, #ef4444, #ff6b6b)'
@@ -440,40 +436,38 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
                                             border: isConflict ? '1px solid #ff4444' : '1px solid rgba(255,255,255,0.2)',
                                             overflow: 'hidden',
                                             boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                                            cursor: 'pointer'
+                                            cursor: 'grab'
                                         }}
-                                        title={`${courseName}\nПрогресс: ${progress}%\nУчастников: ${group.participants?.length || 0}`}
+                                        title={`${courseName}\nПрогресс: ${progress}%\nУчастников: ${group.participants?.length || 0}\n💡 Перетащите для изменения дат`}
+                                        onMouseDown={(e) => handleDragStart(e, group)}
+                                        onClick={(e) => { e.stopPropagation(); onGroupClick?.(group.id) }}
                                     >
-                                        {/* Индикатор прогресса */}
-                                        <div
-                                            style={{
-                                                position: 'absolute',
-                                                left: 0,
-                                                top: 0,
-                                                bottom: 0,
-                                                width: `${progress}%`,
-                                                background: 'rgba(255,255,255,0.3)',
-                                                transition: 'width 0.3s'
-                                            }}
-                                        />
+                                        {/* Индикатор прогресса внутри полосы */}
+                                        <div style={{
+                                            position: 'absolute',
+                                            left: 0,
+                                            top: 0,
+                                            bottom: 0,
+                                            width: `${progress}%`,
+                                            background: 'rgba(255,255,255,0.25)',
+                                            transition: 'width 0.3s'
+                                        }} />
                                         
-                                        {/* Текст */}
-                                        <div
-                                            style={{
-                                                position: 'relative',
-                                                padding: '0 12px',
-                                                height: '100%',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                fontSize: 11,
-                                                fontWeight: 500,
-                                                color: '#fff',
-                                                textShadow: '0 1px 1px rgba(0,0,0,0.2)',
-                                                whiteSpace: 'nowrap',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis'
-                                            }}
-                                        >
+                                        {/* Текст на полосе */}
+                                        <div style={{
+                                            position: 'relative',
+                                            padding: '0 12px',
+                                            height: '100%',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            fontSize: 11,
+                                            fontWeight: 500,
+                                            color: '#fff',
+                                            textShadow: '0 1px 1px rgba(0,0,0,0.2)',
+                                            whiteSpace: 'nowrap',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis'
+                                        }}>
                                             {courseName.length > 20 ? `${courseName.substring(0, 20)}...` : courseName} • {progress}%
                                         </div>
                                     </div>
@@ -484,7 +478,7 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
                 </div>
             </div>
 
-            {/*Информационные карточки*/}
+            {/* Информационные карточки */}
             <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(3, 1fr)',
@@ -507,6 +501,18 @@ export default function GanttChart({ groups = [], courses = [], onGroupClick }) 
                     <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Всего курсов</div>
                     <div style={{ fontSize: 20, fontWeight: 700 }}>{courses.length}</div>
                 </div>
+            </div>
+            
+            {/* Подсказка */}
+            <div style={{
+                padding: '8px 20px',
+                fontSize: 10,
+                color: 'var(--text-tertiary)',
+                borderTop: '1px solid var(--border-subtle)',
+                textAlign: 'center',
+                background: 'rgba(0,0,0,0.15)'
+            }}>
+                💡 Перетащите полосу для изменения дат | Нажмите ✏️ для редактирования прогресса | Кликните по полосе для деталей
             </div>
         </div>
     )
