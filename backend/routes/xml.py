@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 import xmltodict
 
 from repositories.database.course_repository import course_repository
-from repositories.database.participant_repository import participant_repository
+from repositories.database.employee_repository  import employee_repository
 from utils.xml_parser import XMLParser, XMLValidationError, ForeignKeyValidationError, detect_xml_type
 
 xml_bp = Blueprint("xml", __name__)
@@ -43,11 +43,9 @@ def upload_xml():
 
     try:
         if data_type == 'courses':
-            # 🔥 Курсы (Edu_Course)
             count, warnings = XMLParser.save_courses_from_xml(xml_data, course_repository)
         elif data_type == 'employees':
-            # 🔥 Участники обучения (Edu_Participant) — ДОБАВЛЕНО
-            count, warnings = XMLParser.save_employees_from_xml(xml_data, participant_repository)
+            count, warnings = XMLParser.save_employees_from_xml(xml_data, employee_repository)
         else:
             return jsonify({
                 "error": f"Неверный тип '{data_type}'. Ожидается: courses | employees"
@@ -106,7 +104,7 @@ def sync_xml():
         try:
             data = xmltodict.parse(employees_file.read(), encoding='utf-8')
             # 🔥 Исправлено: используем participant_repository
-            count, warnings = XMLParser.save_employees_from_xml(data, participant_repository)
+            count, warnings = XMLParser.save_employees_from_xml(data, employee_repository)
             imported["employees"] = count
             all_warnings.extend(warnings)
         except XMLValidationError as e:
