@@ -1,14 +1,13 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
     GraduationCap, BookOpen, Users, FileText,
-    AlertTriangle, ChevronRight
+    AlertTriangle, ChevronRight, X
 } from 'lucide-react'
 import { useStore, calcGroupProgress, calcSpecTotals } from '../store/useStore.js'
 import StatusBadge from '../components/ui/StatusBadge.jsx'
 import PageHeader from '../components/ui/PageHeader.jsx'
 import GanttChart from '../components/GanttChart.jsx'
-
 
 const fmt = (n) => new Intl.NumberFormat('ru-RU').format(Math.round(n))
 
@@ -16,11 +15,14 @@ export default function Dashboard() {
     const navigate = useNavigate()
     const { groups, courses, employees, companies, specifications } = useStore()
 
+    // Состояние для отображения ошибки БД
+    const [apiError, setApiError] = useState(null)
+
     const activeGroups = groups.filter(g => g.status === 'active')
     const plannedGroups = groups.filter(g => g.status === 'planned')
     const totalParticipants = groups.reduce((acc, g) => acc + g.participants.length, 0)
 
-    // Конфликты расписания: группы с одним курсом и одной датой начала
+    // Конфликты расписания
     const conflicts = []
     const byCourseDateStart = {}
     groups.forEach(g => {
@@ -43,12 +45,56 @@ export default function Dashboard() {
         .sort((a, b) => b.startDate > a.startDate ? -1 : 1)
         .slice(0, 5)
 
+    // Вспомогательная функция для имитации/обработки ошибки (для примера)
+    // В реальном приложении вызовите setApiError, если API вернет ForeignKeyViolation
+    const handleDbError = (rawError) => {
+        if (rawError.includes('violates foreign key constraint')) {
+            const match = rawError.match(/Key \(company_id\)=\((\d+)\)/);
+            const id = match ? match[1] : '';
+            setApiError(`Компания с ID ${id} не найдена. Пожалуйста, сначала добавьте её в систему.`);
+        }
+    }
+
     return (
         <div className="page-enter">
             <PageHeader
                 title="Дашборд"
                 subtitle="Общая сводка по системе корпоративного обучения"
             />
+
+            {/* Блок критической ошибки БД */}
+            {apiError && (
+                <div className="glass-card" style={{
+                    marginBottom: 24,
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    background: 'rgba(239, 68, 68, 0.05)',
+                    padding: '12px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    animation: 'slideIn 0.3s ease'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <AlertTriangle size={20} color="#ef4444" />
+                        <div>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: '#ef4444' }}>Ошибка целостности данных</div>
+                            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{apiError}</div>
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button
+                            className="btn btn-primary btn-sm"
+                            onClick={() => navigate('/companies')}
+                            style={{ background: '#ef4444', borderColor: '#ef4444' }}
+                        >
+                            Добавить компанию
+                        </button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setApiError(null)}>
+                            <X size={16} />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* KPI stats */}
             <div className="grid-4" style={{ marginBottom: 24 }}>
@@ -109,10 +155,10 @@ export default function Dashboard() {
                     </div>
                 ))}
             </div>
-            
+
             <div style={{ marginBottom: 24 }}>
-                <GanttChart 
-                    groups={groups} 
+                <GanttChart
+                    groups={groups}
                     courses={courses}
                     onGroupClick={(groupId) => navigate(`/groups/${groupId}`)}
                 />
@@ -126,9 +172,9 @@ export default function Dashboard() {
                         borderBottom: '1px solid var(--border-subtle)',
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     }}>
-            <span style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.02em' }}>
-              Учебные группы
-            </span>
+                        <span style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.02em' }}>
+                          Учебные группы
+                        </span>
                         <button
                             className="btn btn-ghost btn-sm"
                             onClick={() => navigate('/groups')}
@@ -167,8 +213,8 @@ export default function Dashboard() {
                                                 <AlertTriangle size={12} color="var(--accent-amber)" />
                                             )}
                                             <span style={{ fontWeight: 500, fontSize: 13 }}>
-                          {course?.name || '—'}
-                        </span>
+                                                    {course?.name || '—'}
+                                                </span>
                                         </div>
                                     </td>
                                     <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
@@ -183,28 +229,18 @@ export default function Dashboard() {
                                                 <div className="progress-bar-fill" style={{ width: `${progress}%` }} />
                                             </div>
                                             <span style={{ fontSize: 11, color: 'var(--text-secondary)', width: 28 }}>
-                          {progress}%
-                        </span>
+                                                    {progress}%
+                                                </span>
                                         </div>
                                     </td>
                                     <td><StatusBadge status={g.status} /></td>
                                 </tr>
                             )
                         })}
-                        {groups.length === 0 && (
-                            <tr>
-                                <td colSpan={5}>
-                                    <div className="empty-state" style={{ padding: '32px 0' }}>
-                                        <div className="empty-state-title">Нет групп обучения</div>
-                                    </div>
-                                </td>
-                            </tr>
-                        )}
                         </tbody>
                     </table>
                 </div>
 
-                {/* Right column */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {/* Conflicts */}
                     {conflicts.length > 0 && (
@@ -248,10 +284,7 @@ export default function Dashboard() {
 
                     {/* Companies breakdown */}
                     <div className="glass-card" style={{ padding: 16 }}>
-                        <div style={{
-                            fontSize: 13, fontWeight: 600, letterSpacing: '-0.02em',
-                            marginBottom: 12,
-                        }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
                             По компаниям
                         </div>
                         {companies.map(company => {
@@ -272,7 +305,6 @@ export default function Dashboard() {
                                             border: '1px solid var(--border-default)',
                                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                                             fontSize: 9, fontWeight: 700, color: 'var(--accent-blue)',
-                                            letterSpacing: '0.02em',
                                         }}>
                                             {company.code}
                                         </div>
@@ -284,42 +316,6 @@ export default function Dashboard() {
                                 </div>
                             )
                         })}
-                        {companies.length === 0 && (
-                            <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-                                Нет компаний
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Quick stats */}
-                    <div className="glass-card" style={{ padding: 16 }}>
-                        <div style={{
-                            fontSize: 13, fontWeight: 600, letterSpacing: '-0.02em',
-                            marginBottom: 12,
-                        }}>
-                            Статистика групп
-                        </div>
-                        {[
-                            { label: 'Планируется', count: plannedGroups.length, color: 'var(--status-planned)' },
-                            { label: 'В процессе', count: activeGroups.length, color: 'var(--status-active)' },
-                            { label: 'Завершено', count: groups.filter(g => g.status === 'done').length, color: 'var(--text-tertiary)' },
-                        ].map(s => (
-                            <div key={s.label} style={{
-                                display: 'flex', alignItems: 'center',
-                                justifyContent: 'space-between',
-                                padding: '6px 0',
-                                fontSize: 12,
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <div style={{
-                                        width: 6, height: 6, borderRadius: '50%',
-                                        background: s.color, flexShrink: 0,
-                                    }} />
-                                    <span style={{ color: 'var(--text-secondary)' }}>{s.label}</span>
-                                </div>
-                                <span style={{ fontWeight: 600, color: s.color }}>{s.count}</span>
-                            </div>
-                        ))}
                     </div>
                 </div>
             </div>

@@ -5,32 +5,8 @@ xml_parser.py
 
 Поддерживаемые форматы:
 
-1. Курс (Edu_Course):
-   <?xml version="1.0" encoding="UTF-8"?>
-   <Edu_Course>
-       <id>4217</id>
-       <sCode>0001</sCode>
-       <sCourseHL>Базовый курс бизнес-аналитика</sCourseHL>
-       <sDescription>Курс для бизнес-аналитиков...</sDescription>
-       <nDurationInDays>3</nDurationInDays>
-       <nPricePerPerson>10000</nPricePerPerson>
-   </Edu_Course>
-
-2. Сотрудник (Edu_Participant):
-   <?xml version="1.0" encoding="UTF-8"?>
-   <Edu_Participant>
-       <id>1203</id>
-       <sCode>0048</sCode>
-       <sFIO>Иванов Иван Иванович</sFIO>
-       <idOrganization>162362</idOrganization>
-       <idOrganizationHL>ООО "Ромашка"</idOrganizationHL>
-   </Edu_Participant>
-
-Также поддерживаются файлы с несколькими записями внутри корневого тега:
-   <Edu_Courses>
-       <Edu_Course>...</Edu_Course>
-       <Edu_Course>...</Edu_Course>
-   </Edu_Courses>
+1. Курс (Edu_Course)
+2. Участник обучения (Edu_Participant)
 """
 from __future__ import annotations
 
@@ -38,7 +14,6 @@ from typing import Dict, Any, List, Tuple
 from repositories.base import (
     CourseRepositoryInterface,
     EmployeeRepositoryInterface,
-    GroupRepositoryInterface,
 )
 
 
@@ -46,6 +21,11 @@ from repositories.base import (
 
 class XMLValidationError(Exception):
     """Ошибка валидации XML — возвращается пользователю как 400."""
+    pass
+
+
+class ForeignKeyValidationError(XMLValidationError):
+    """Ошибка внешней ссылки — сущность не найдена."""
     pass
 
 
@@ -108,7 +88,7 @@ def _normalize_to_list(data: Any) -> List[Dict]:
 def detect_xml_type(parsed: Dict) -> str:
     """
     Определяет тип XML по корневому тегу.
-    Возвращает: 'courses' | 'employees' | 'groups' | 'unknown'
+    Возвращает: 'courses' | 'employees' | 'unknown'
     """
     root_key = next(iter(parsed), None)
     if root_key is None:
@@ -120,8 +100,6 @@ def detect_xml_type(parsed: Dict) -> str:
         return 'courses'
     if 'edu_participant' in key_lower or 'employee' in key_lower:
         return 'employees'
-    if 'traininggroup' in key_lower or 'group' in key_lower:
-        return 'groups'
 
     return 'unknown'
 
@@ -138,17 +116,7 @@ class XMLParser:
 
     @staticmethod
     def _validate_course(node: Dict, index: int) -> Dict:
-        """
-        Валидирует одну запись курса из XML.
-        Бросает XMLValidationError если данные некорректны.
-
-        Маппинг полей Global ERP → БД:
-          sCourseHL       → course_name      (обязательное)
-          nDurationInDays → duration_days    (обязательное, >= 1)
-          nPricePerPerson → price_per_person (обязательное, > 0)
-          sDescription    → description      (необязательное)
-          id              → external_id      (необязательное, для дедупликации)
-        """
+        """Валидирует одну запись курса из XML."""
         prefix = f"Курс #{index + 1}"
 
         course_name = _require(node, 'sCourseHL', f"{prefix}: название курса")
@@ -159,37 +127,26 @@ class XMLParser:
         price = _require_float(node, 'nPricePerPerson', f"{prefix}: цена за человека", min_val=0.01)
 
         return {
-            "course_name":     course_name,
-            "description":     _get_text(node, 'sDescription'),
-            "duration_days":   duration_days,
+            "course_name": course_name,
+            "description": _get_text(node, 'sDescription'),
+            "duration_days": duration_days,
             "price_per_person": price,
+            "external_id": _get_text(node, 'id'),
         }
 
     @staticmethod
     def save_courses_from_xml(parsed: Dict[str, Any], repo: CourseRepositoryInterface) -> Tuple[int, List[str]]:
-        """
-        Сохраняет курсы из распарсенного XML в БД.
-
-        Поддерживает форматы:
-          - <Edu_Course>...</Edu_Course>           — одна запись
-          - <Edu_Courses><Edu_Course>...</Edu_Course></Edu_Courses> — несколько
-
-        Возвращает: (количество сохранённых, список предупреждений)
-        Бросает: XMLValidationError при некорректных данных
-        """
+        """Сохраняет курсы из распарсенного XML в БД."""
         root_key = next(iter(parsed), None)
         if root_key is None:
             raise XMLValidationError("XML файл пустой или не содержит данных")
 
         root = parsed[root_key]
 
-        # Один курс: корневой тег = <Edu_Course>
         if root_key == 'Edu_Course':
             nodes = [root]
-        # Несколько курсов: корневой тег = <Edu_Courses> с вложенными <Edu_Course>
         elif 'Edu_Course' in root:
             nodes = _normalize_to_list(root['Edu_Course'])
-        # Старый формат: <root><course>...</course></root>
         elif 'course' in root:
             nodes = _normalize_to_list(root['course'])
         else:
@@ -212,178 +169,81 @@ class XMLParser:
 
         return count, warnings
 
-    # ── Сотрудники ───────────────────────────────────────────────────────────
+    # ── Участники обучения (Сотрудники) ─────────────────────────────────────
 
     @staticmethod
     def _validate_employee(node: Dict, index: int) -> Dict:
-        prefix = f"Сотрудник #{index + 1}"
+        """Валидирует одного участника обучения из XML (Edu_Participant)"""
+        prefix = f"Участник #{index + 1}"
 
-        # Пытаемся взять sFIO, если его нет — собираем из частей
-        full_name = _get_text(node, 'sFIO')
-        if not full_name:
-            last = _get_text(node, 'sLastName') or ""
-            first = _get_text(node, 'sFirstName') or ""
-            middle = _get_text(node, 'sMiddleName') or ""
-            full_name = f"{last} {first} {middle}".strip()
+        # Основные обязательные поля
+        last_name = _require(node, 'sLastName', f"{prefix}: фамилия")
+        first_name = _require(node, 'sFirstName', f"{prefix}: имя")
+        middle_name = _get_text(node, 'sMiddleName')
 
-        if not full_name:
-            raise XMLValidationError(f"{prefix}: ФИО отсутствует (проверьте теги sFIO или sLastName/sFirstName)")
+        # Формируем полное ФИО
+        full_name_parts = [last_name, first_name]
+        if middle_name:
+            full_name_parts.append(middle_name)
+        full_name = " ".join(full_name_parts)
 
-        if len(full_name) > 255:
-            raise XMLValidationError(f"{prefix}: ФИО не должно превышать 255 символов")
-
-        # Проверка организации
-        company_id_raw = _get_text(node, 'idOrganization')
-        if not company_id_raw:
-            raise XMLValidationError(f"{prefix}: ID организации (idOrganization) отсутствует")
-
+        # ID организации
+        organization_id_raw = _require(node, 'idOrganization', f"{prefix}: idOrganization")
         try:
-            company_id = int(company_id_raw)
+            company_id = int(organization_id_raw)
         except ValueError:
-            raise XMLValidationError(f"{prefix}: idOrganization должен быть числом")
+            raise XMLValidationError(
+                f"{prefix}: idOrganization должен быть числом, получено: '{organization_id_raw}'"
+            )
+
+        # Дополнительные поля
+        code = _get_text(node, 'sCode')
+        external_id = _get_text(node, 'id')
+        organization_name = _get_text(node, 'idOrganizationHL')  # название организации из XML
+
+        # Проверка длины ФИО
+        if len(full_name) > 255:
+            raise XMLValidationError(f"{prefix}: ФИО слишком длинное (максимум 255 символов)")
 
         return {
             "full_name": full_name,
+            "last_name": last_name,
+            "first_name": first_name,
+            "middle_name": middle_name,
             "company_id": company_id,
-            "email": _get_text(node, 'email'),
+            "company_name_from_xml": organization_name,  # временно сохраняем, чтобы потом денормализовать
+            "email": None,  # в твоём примере email отсутствует
+            "external_id": external_id,
+            "code": code,
         }
 
     @staticmethod
     def save_employees_from_xml(parsed: Dict[str, Any], repo: EmployeeRepositoryInterface) -> Tuple[int, List[str]]:
-        """
-        Сохраняет сотрудников из распарсенного XML в БД.
-
-        Поддерживает форматы:
-          - <Edu_Participant>...</Edu_Participant>  — одна запись
-          - <Edu_Participants><Edu_Participant>...</Edu_Participant></Edu_Participants>
-
-        Возвращает: (количество сохранённых, список предупреждений)
-        """
+        """Сохраняет участников обучения из XML"""
         root_key = next(iter(parsed), None)
         if root_key is None:
             raise XMLValidationError("XML файл пустой")
 
-        root = parsed[root_key]
-
+        # Поддержка как одиночного элемента, так и списка
         if root_key == 'Edu_Participant':
-            nodes = [root]
-        elif 'Edu_Participant' in root:
-            nodes = _normalize_to_list(root['Edu_Participant'])
-        # Старый формат
-        elif 'employee' in root:
-            nodes = _normalize_to_list(root['employee'])
+            nodes = [parsed[root_key]]
         else:
-            raise XMLValidationError(
-                f"Неизвестная структура XML для сотрудников. "
-                f"Ожидается корневой тег <Edu_Participant> или <Edu_Participants>. "
-                f"Получен: <{root_key}>"
-            )
+            root = parsed[root_key]
+            nodes = _normalize_to_list(root.get('Edu_Participant') or root.get('employee'))
 
         if not nodes:
-            raise XMLValidationError("XML не содержит ни одной записи сотрудника")
+            raise XMLValidationError("XML не содержит записей Edu_Participant")
 
-        warnings = []
+        warnings: List[str] = []
         count = 0
 
         for i, node in enumerate(nodes):
-            employee_data = XMLParser._validate_employee(node, i)
-            repo.create(employee_data)
-            count += 1
-
-        return count, warnings
-
-    # ── Группы ───────────────────────────────────────────────────────────────
-
-    @staticmethod
-    def _validate_group(node: Dict, index: int) -> Dict:
-        """
-        Валидирует одну запись группы из XML.
-
-        Маппинг полей:
-          course_id  / CourseID  → course_id  (обязательное)
-          start_date / StartDate → start_date (обязательное, формат YYYY-MM-DD)
-          end_date   / EndDate   → end_date   (обязательное, формат YYYY-MM-DD)
-          status     / Status    → status     (необязательное, default: planned)
-        """
-        import re
-        prefix = f"Группа #{index + 1}"
-        date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
-
-        # Поддерживаем оба варианта именования
-        course_id_raw = _get_text(node, 'course_id') or _get_text(node, 'CourseID')
-        if not course_id_raw:
-            raise XMLValidationError(f"{prefix}: обязательное поле course_id / CourseID отсутствует")
-        try:
-            course_id = int(course_id_raw)
-        except ValueError:
-            raise XMLValidationError(f"{prefix}: course_id должен быть числом, получено: '{course_id_raw}'")
-
-        start_date = _get_text(node, 'start_date') or _get_text(node, 'StartDate')
-        if not start_date:
-            raise XMLValidationError(f"{prefix}: обязательное поле start_date отсутствует")
-        if not date_pattern.match(start_date):
-            raise XMLValidationError(f"{prefix}: start_date должен быть в формате YYYY-MM-DD, получено: '{start_date}'")
-
-        end_date = _get_text(node, 'end_date') or _get_text(node, 'EndDate')
-        if not end_date:
-            raise XMLValidationError(f"{prefix}: обязательное поле end_date отсутствует")
-        if not date_pattern.match(end_date):
-            raise XMLValidationError(f"{prefix}: end_date должен быть в формате YYYY-MM-DD, получено: '{end_date}'")
-
-        if end_date < start_date:
-            raise XMLValidationError(f"{prefix}: end_date ({end_date}) не может быть раньше start_date ({start_date})")
-
-        status = _get_text(node, 'status') or _get_text(node, 'Status') or 'planned'
-        valid_statuses = {'planned', 'in_progress', 'completed', 'cancelled'}
-        if status not in valid_statuses:
-            raise XMLValidationError(
-                f"{prefix}: недопустимый статус '{status}'. "
-                f"Допустимые значения: {', '.join(sorted(valid_statuses))}"
-            )
-
-        return {
-            "course_id":        course_id,
-            "start_date":       start_date,
-            "end_date":         end_date,
-            "status":           status,
-            "specification_id": None,
-        }
-
-    @staticmethod
-    def save_groups_from_xml(parsed: Dict[str, Any], repo: GroupRepositoryInterface) -> Tuple[int, List[str]]:
-        """
-        Сохраняет группы из распарсенного XML в БД.
-
-        Возвращает: (количество сохранённых, список предупреждений)
-        """
-        root_key = next(iter(parsed), None)
-        if root_key is None:
-            raise XMLValidationError("XML файл пустой")
-
-        root = parsed[root_key]
-
-        if root_key == 'TrainingGroup':
-            nodes = [root]
-        elif 'TrainingGroup' in root:
-            nodes = _normalize_to_list(root['TrainingGroup'])
-        elif 'group' in root:
-            nodes = _normalize_to_list(root['group'])
-        else:
-            raise XMLValidationError(
-                f"Неизвестная структура XML для групп. "
-                f"Ожидается корневой тег <TrainingGroup>. "
-                f"Получен: <{root_key}>"
-            )
-
-        if not nodes:
-            raise XMLValidationError("XML не содержит ни одной записи группы")
-
-        warnings = []
-        count = 0
-
-        for i, node in enumerate(nodes):
-            group_data = XMLParser._validate_group(node, i)
-            repo.create(group_data)
-            count += 1
+            try:
+                employee_data = XMLParser._validate_employee(node, i)
+                repo.create(employee_data)  # ← здесь создаётся объект в БД
+                count += 1
+            except XMLValidationError as e:
+                warnings.append(str(e))
+                continue  # можно продолжить обработку остальных записей
 
         return count, warnings

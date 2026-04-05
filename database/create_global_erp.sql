@@ -28,11 +28,11 @@ CREATE TABLE courses (
 );
 
 CREATE TABLE course_price_history (
-    id SERIAL PRIMARY KEY,
-    course_id INT REFERENCES courses(course_id) ON DELETE CASCADE,
-    price NUMERIC(12,2) NOT NULL,
-    valid_from DATE NOT NULL,
-    valid_to DATE
+                                      id SERIAL PRIMARY KEY,
+                                      course_id INT REFERENCES courses(course_id) ON DELETE CASCADE,
+                                      price NUMERIC(12,2) NOT NULL,
+                                      valid_from DATE NOT NULL,
+                                      valid_to DATE
 );
 
 -- 4. Таблица "Спецификация" (п. 2.2.5)
@@ -98,7 +98,7 @@ SELECT
     c.company_name,
     e.email
 FROM employees e
-LEFT JOIN companies c ON e.company_id = c.company_id;
+         LEFT JOIN companies c ON e.company_id = c.company_id;
 
 
 CREATE OR REPLACE VIEW v_study_groups_full AS
@@ -113,15 +113,15 @@ SELECT
     sg.actual_price_per_person,
     COUNT(gp.participant_id) AS participant_count,
     COALESCE(JSON_AGG(
-        JSON_BUILD_OBJECT(
-            'id', gp.participant_id,
-            'employee_id', gp.employee_id,
-            'progress', gp.completion_percentage
-        )
-    ) FILTER (WHERE gp.participant_id IS NOT NULL), '[]') AS participants
+                     JSON_BUILD_OBJECT(
+                             'id', gp.participant_id,
+                             'employee_id', gp.employee_id,
+                             'progress', gp.completion_percentage
+                     )
+             ) FILTER (WHERE gp.participant_id IS NOT NULL), '[]') AS participants
 FROM study_groups sg
-JOIN courses c ON sg.course_id = c.course_id
-LEFT JOIN group_participants gp ON sg.group_id = gp.group_id
+         JOIN courses c ON sg.course_id = c.course_id
+         LEFT JOIN group_participants gp ON sg.group_id = gp.group_id
 GROUP BY sg.group_id, c.course_name;
 
 --

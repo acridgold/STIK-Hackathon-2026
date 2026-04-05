@@ -352,6 +352,7 @@ export const useStore = create(
             })),
 
             // ── XML IMPORT ──
+            // ── XML IMPORT ──
             importFromXML: (xmlString) => {
                 try {
                     const parser = new DOMParser()
@@ -359,114 +360,114 @@ export const useStore = create(
                     const parseError = doc.querySelector('parsererror')
                     if (parseError) throw new Error('Ошибка парсинга XML')
 
+                    const s = get(); // Берем текущее состояние
+
+                    let newCompanies = [...s.companies]
+                    let newCourses = [...s.courses]
+                    let newEmployees = [...s.employees]
+                    let newGroups = [...s.groups]
+
                     const imported = { employees: 0, courses: 0, companies: 0, groups: 0 }
 
-                    // Импорт компаний
+                    // 1. Импорт компаний
                     doc.querySelectorAll('Company').forEach(node => {
                         const id = node.getAttribute('id') || uid()
-                        const code = node.querySelector('Code')?.textContent?.trim() || ''
+                        if (newCompanies.some(c => c.id === id)) return
+
                         const name = node.querySelector('Name')?.textContent?.trim() || ''
                         if (!name) return
-                        set(s => {
-                            if (s.companies.some(c => c.id === id)) return s
-                            imported.companies++
-                            return { companies: [...s.companies, { id, code, name }] }
+
+                        newCompanies.push({
+                            id,
+                            code: node.querySelector('Code')?.textContent?.trim() || '',
+                            name
                         })
+                        imported.companies++
                     })
 
-                    // Импорт курсов (формат Edu_Course)
+                    // 2. Импорт курсов
                     doc.querySelectorAll('Edu_Course').forEach(node => {
                         const id = node.querySelector('id')?.textContent?.trim() || uid()
+                        if (newCourses.some(c => c.id === id)) return
+
                         const name = node.querySelector('sCourseHL')?.textContent?.trim() || ''
-                        const description = node.querySelector('sDescription')?.textContent?.trim() || ''
-                        const durationDays = Number(node.querySelector('nDurationInDays')?.textContent) || 1
-                        const price = Number(node.querySelector('nPricePerPerson')?.textContent) || 0
                         if (!name) return
-                        set(s => {
-                            if (s.courses.some(c => c.id === id)) return s
-                            imported.courses++
-                            return {
-                                courses: [...s.courses, {
-                                    id, name, description, durationDays,
-                                    priceHistory: [{ price, validFrom: today() }]
-                                }]
-                            }
+
+                        newCourses.push({
+                            id,
+                            name,
+                            description: node.querySelector('sDescription')?.textContent?.trim() || '',
+                            durationDays: Number(node.querySelector('nDurationInDays')?.textContent) || 1,
+                            priceHistory: [{
+                                price: Number(node.querySelector('nPricePerPerson')?.textContent) || 0,
+                                validFrom: today()
+                            }]
                         })
+                        imported.courses++
                     })
 
-                    // Импорт сотрудников (формат Edu_Participant)
+                    // 3. Импорт сотрудников
                     doc.querySelectorAll('Edu_Participant').forEach(node => {
                         const id = node.querySelector('id')?.textContent?.trim() || uid()
-                        const fullName = node.querySelector('sFIO')?.textContent?.trim() || ''
-                        const companyName = node.querySelector('idOrganizationHL')?.textContent?.trim() || ''
-                        const companyId = node.querySelector('idOrganization')?.textContent?.trim() || ''
+                        if (newEmployees.some(e => e.id === id)) return
 
+                        const fullName = node.querySelector('sFIO')?.textContent?.trim() || ''
+                        const companyId = node.querySelector('idOrganization')?.textContent?.trim() || ''
                         if (!fullName) return
 
-                        set(s => {
-                            if (s.employees.some(e => e.id === id)) return s
+                        // Если компании нет — создаём на лету
+                        if (companyId && !newCompanies.some(c => c.id === companyId)) {
+                            newCompanies.push({
+                                id: companyId,
+                                code: companyId.slice(-4),
+                                name: node.querySelector('idOrganizationHL')?.textContent?.trim() || `Компания ${companyId}`
+                            })
+                            imported.companies++
+                        }
 
-                            // Если компании нет — создаём
-                            if (companyId && !s.companies.some(c => c.id === companyId)) {
-                                imported.companies++
-                                s.companies = [...s.companies, {
-                                    id: companyId,
-                                    code: companyId.slice(-4),
-                                    name: companyName || `Компания ${companyId}`
-                                }]
-                            }
-
-                            imported.employees++
-                            return {
-                                employees: [...s.employees, {
-                                    id,
-                                    fullName,
-                                    companyId: companyId || null,
-                                    email: ''
-                                }]
-                            }
-                        })
+                        newEmployees.push({ id, fullName, companyId: companyId || null, email: '' })
+                        imported.employees++
                     })
 
-                    // Импорт учебных групп для диаграммы Ганта
+                    // 4. Импорт групп (тот самый вложенный массив)
                     doc.querySelectorAll('TrainingGroup').forEach(node => {
                         const id = node.getAttribute('id') || uid()
-                        const courseId = node.querySelector('CourseID')?.textContent?.trim() || ''
-                        const startDate = node.querySelector('StartDate')?.textContent?.trim() || ''
-                        const endDate = node.querySelector('EndDate')?.textContent?.trim() || ''
-                        const status = node.querySelector('Status')?.textContent?.trim() || 'planned'
+                        if (newGroups.some(g => g.id === id)) return
 
-                        if (!courseId || !startDate || !endDate) return
+                        const courseId = node.querySelector('CourseID')?.textContent?.trim() || ''
+                        if (!courseId) return
 
                         const participants = []
                         node.querySelectorAll('Participant').forEach(pNode => {
-                            const employeeId = pNode.querySelector('EmployeeID')?.textContent?.trim() || ''
-                            const progress = Number(pNode.querySelector('Progress')?.textContent) || 0
-                            if (employeeId) {
+                            const empId = pNode.querySelector('EmployeeID')?.textContent?.trim()
+                            if (empId) {
                                 participants.push({
                                     id: uid(),
                                     groupId: id,
-                                    employeeId,
-                                    progress: Math.min(100, Math.max(0, progress))
+                                    employeeId: empId,
+                                    progress: Number(pNode.querySelector('Progress')?.textContent) || 0
                                 })
                             }
                         })
 
-                        set(s => {
-                            if (s.groups.some(g => g.id === id)) return s
-                            imported.groups++
-                            return {
-                                groups: [...s.groups, {
-                                    id,
-                                    courseId,
-                                    startDate,
-                                    endDate,
-                                    status,
-                                    specId: null,
-                                    participants
-                                }]
-                            }
+                        newGroups.push({
+                            id,
+                            courseId,
+                            startDate: node.querySelector('StartDate')?.textContent?.trim() || today(),
+                            endDate: node.querySelector('EndDate')?.textContent?.trim() || today(),
+                            status: node.querySelector('Status')?.textContent?.trim() || 'planned',
+                            specId: null,
+                            participants
                         })
+                        imported.groups++
+                    })
+
+                    // ЕДИНСТВЕННЫЙ вызов set в конце
+                    set({
+                        companies: newCompanies,
+                        courses: newCourses,
+                        employees: newEmployees,
+                        groups: newGroups
                     })
 
                     return { success: true, imported }
