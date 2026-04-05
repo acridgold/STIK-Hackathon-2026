@@ -270,7 +270,7 @@ export const useStore = create(
                 }))
             })),
 
-            // ── Bulk setters (для загрузки с бэкенда) ──
+            // ── Bulk setters ──
             setGroups:    (groups)    => set(s => ({ groups:    typeof groups    === 'function' ? groups(s.groups)    : groups })),
             setCourses:   (courses)   => set(s => ({ courses:   typeof courses   === 'function' ? courses(s.courses)   : courses })),
             setEmployees: (employees) => set(s => ({ employees: typeof employees === 'function' ? employees(s.employees) : employees })),
@@ -352,7 +352,6 @@ export const useStore = create(
             })),
 
             // ── XML IMPORT ──
-            // ── XML IMPORT ──
             importFromXML: (xmlString) => {
                 try {
                     const parser = new DOMParser()
@@ -360,7 +359,7 @@ export const useStore = create(
                     const parseError = doc.querySelector('parsererror')
                     if (parseError) throw new Error('Ошибка парсинга XML')
 
-                    const s = get(); // Берем текущее состояние
+                    const s = get();
 
                     let newCompanies = [...s.companies]
                     let newCourses = [...s.courses]
@@ -415,7 +414,6 @@ export const useStore = create(
                         const companyId = node.querySelector('idOrganization')?.textContent?.trim() || ''
                         if (!fullName) return
 
-                        // Если компании нет — создаём на лету
                         if (companyId && !newCompanies.some(c => c.id === companyId)) {
                             newCompanies.push({
                                 id: companyId,
@@ -429,7 +427,7 @@ export const useStore = create(
                         imported.employees++
                     })
 
-                    // 4. Импорт групп (тот самый вложенный массив)
+                    // 4. Импорт групп
                     doc.querySelectorAll('TrainingGroup').forEach(node => {
                         const id = node.getAttribute('id') || uid()
                         if (newGroups.some(g => g.id === id)) return
@@ -462,7 +460,6 @@ export const useStore = create(
                         imported.groups++
                     })
 
-                    // ЕДИНСТВЕННЫЙ вызов set в конце
                     set({
                         companies: newCompanies,
                         courses: newCourses,
