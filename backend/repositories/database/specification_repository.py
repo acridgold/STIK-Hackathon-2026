@@ -9,7 +9,7 @@ class SpecificationRepository(SpecificationRepositoryInterface):
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT * FROM v_specifications_summary ORDER BY document_id;"
+                    "SELECT * FROM v_specifications_full ORDER BY id;"
                 )
                 return [dict(row) for row in cur.fetchall()]
 
@@ -17,8 +17,8 @@ class SpecificationRepository(SpecificationRepositoryInterface):
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT * FROM v_specifications_summary WHERE document_id = %s;",
-                    (spec_id,),
+                    "SELECT * FROM v_specifications_full WHERE id = %s;",
+                    (spec_id,)
                 )
                 row = cur.fetchone()
                 return dict(row) if row else None

@@ -10,7 +10,7 @@ class GroupRepository(GroupRepositoryInterface):
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT * FROM v_study_groups_summary ORDER BY group_id;"
+                    "SELECT * FROM v_study_groups_full ORDER BY id;"
                 )
                 return [dict(row) for row in cur.fetchall()]
 
@@ -18,11 +18,13 @@ class GroupRepository(GroupRepositoryInterface):
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT * FROM v_study_groups_summary WHERE group_id = %s;",
-                    (group_id,),
+                    "SELECT * FROM v_study_groups_full WHERE id = %s;",
+                    (group_id,)
                 )
                 row = cur.fetchone()
-                return dict(row) if row else None
+                if row:
+                    return dict(row)
+                return None
 
     def create(self, data: Dict) -> Dict:
         """
