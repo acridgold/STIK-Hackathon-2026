@@ -1,16 +1,7 @@
-
 /**
  * GLOBAL STORE — Zustand
  * Хранит все сущности системы: компании, курсы, сотрудники, группы, спецификации.
  * Персистентность через localStorage.
- *
- * Модель данных:
- *   Company       → id, code, name
- *   Course        → id, name, description, durationDays, priceHistory[]
- *   Employee      → id, fullName, companyId, email, groupIds[]
- *   Group         → id, courseId, startDate, endDate, status, specId, participants[]
- *   Participant   → id, groupId, employeeId, progress (0-100)
- *   Specification → id, date, number, companyId, groupIds[]
  */
 
 import { create } from 'zustand'
@@ -81,43 +72,10 @@ function seedData() {
             status: 'done',
             specId: 'sp1',
             participants: [
-                { id: 'p1', groupId: 'g1', employeeId: 'e1', progress: 100 },
-                { id: 'p2', groupId: 'g1', employeeId: 'e2', progress: 100 },
-                { id: 'p3', groupId: 'g1', employeeId: 'e3', progress: 90 },
+                { participant_id: 'p1', groupId: 'g1', employee_id: 'e1', full_name: 'Иванов Иван Иванович', progress: 100 },
+                { participant_id: 'p2', groupId: 'g1', employee_id: 'e2', full_name: 'Петрова Мария Сергеевна', progress: 100 },
+                { participant_id: 'p3', groupId: 'g1', employee_id: 'e3', full_name: 'Сидоров Алексей Павлович', progress: 90 },
             ],
-        },
-        {
-            id: 'g2',
-            courseId: 'cr2',
-            startDate: '2025-03-03',
-            endDate: '2025-03-05',
-            status: 'done',
-            specId: 'sp1',
-            participants: [
-                { id: 'p4', groupId: 'g2', employeeId: 'e4', progress: 100 },
-                { id: 'p5', groupId: 'g2', employeeId: 'e5', progress: 85 },
-            ],
-        },
-        {
-            id: 'g3',
-            courseId: 'cr3',
-            startDate: '2025-05-12',
-            endDate: '2025-05-13',
-            status: 'active',
-            specId: null,
-            participants: [
-                { id: 'p6', groupId: 'g3', employeeId: 'e1', progress: 60 },
-                { id: 'p7', groupId: 'g3', employeeId: 'e3', progress: 40 },
-            ],
-        },
-        {
-            id: 'g4',
-            courseId: 'cr1',
-            startDate: '2025-07-07',
-            endDate: '2025-07-11',
-            status: 'planned',
-            specId: null,
-            participants: [],
         },
     ]
 
@@ -127,7 +85,7 @@ function seedData() {
             date: '2025-01-15',
             number: 1,
             companyId: 'c1',
-            groupIds: ['g1', 'g2'],
+            groupIds: ['g1'],
         },
     ]
 
@@ -166,17 +124,6 @@ export function calcGroupProgress(group) {
     return Math.round(sum / group.participants.length)
 }
 
-export function calcSpecTotals(spec, groups, courses) {
-    const specGroups = groups.filter(g => spec.groupIds.includes(g.id))
-    const subtotal = specGroups.reduce((acc, g) => {
-        const course = courses.find(c => c.id === g.courseId)
-        return acc + calcGroupCost(g, course)
-    }, 0)
-    const vat = subtotal * VAT_RATE
-    const total = subtotal + vat
-    return { subtotal, vat, total }
-}
-
 // ─── STORE ──────────────────────────────────────────────────────────────────
 const seed = seedData()
 
@@ -190,18 +137,16 @@ export const useStore = create(
             groups: seed.groups,
             specifications: seed.specifications,
 
-            // ── Companies ──
-            addCompany: (data) => set(s => ({
-                companies: [...s.companies, { id: uid(), ...data }]
-            })),
-            updateCompany: (id, data) => set(s => ({
-                companies: s.companies.map(c => c.id === id ? { ...c, ...data } : c)
-            })),
-            deleteCompany: (id) => set(s => ({
-                companies: s.companies.filter(c => c.id !== id)
-            })),
+            // ── Setters ──
+            setGroups: (groups) => set(s => ({ groups: typeof groups === 'function' ? groups(s.groups) : groups })),
+            setCourses: (courses) => set(s => ({ courses: typeof courses === 'function' ? courses(s.courses) : courses })),
+            setEmployees: (employees) => set(s => ({ employees: typeof employees === 'function' ? employees(s.employees) : employees })),
+            setCompanies: (companies) => set({ companies }),
+            setSpecifications: (specifications) => set({ specifications }),
 
-            // ── Courses ──
+            // ── Actions ──
+            addCompany: (data) => set(s => ({ companies: [...s.companies, { id: uid(), ...data }] })),
+
             addCourse: (data) => set(s => ({
                 courses: [...s.courses, {
                     id: uid(),
@@ -211,147 +156,28 @@ export const useStore = create(
                     priceHistory: [{ price: Number(data.price), validFrom: today() }]
                 }]
             })),
-            updateCourse: (id, data) => set(s => ({
-                courses: s.courses.map(c => {
-                    if (c.id !== id) return c
-                    if (data.price !== undefined) {
-                        const current = getCurrentPrice(c)
-                        const newPrice = Number(data.price)
-                        if (newPrice !== current) {
-                            return {
-                                ...c,
-                                ...data,
-                                priceHistory: [...c.priceHistory, { price: newPrice, validFrom: today() }]
-                            }
-                        }
-                    }
-                    return { ...c, ...data }
-                })
-            })),
-            deleteCourse: (id) => set(s => ({
-                courses: s.courses.filter(c => c.id !== id)
-            })),
 
-            // ── Employees ──
-            addEmployee: (data) => set(s => ({
-                employees: [...s.employees, { id: uid(), ...data }]
-            })),
-            updateEmployee: (id, data) => set(s => ({
-                employees: s.employees.map(e => e.id === id ? { ...e, ...data } : e)
-            })),
-            deleteEmployee: (id) => set(s => ({
-                employees: s.employees.filter(e => e.id !== id),
-                groups: s.groups.map(g => ({
-                    ...g,
-                    participants: g.participants.filter(p => p.employeeId !== id)
-                }))
-            })),
-
-            // ── Groups ──
-            addGroup: (data) => set(s => ({
-                groups: [...s.groups, {
-                    id: uid(),
-                    courseId: data.courseId,
-                    startDate: data.startDate,
-                    endDate: data.endDate,
-                    status: data.status || 'planned',
-                    specId: null,
-                    participants: [],
-                }]
-            })),
-            updateGroup: (id, data) => set(s => ({
-                groups: s.groups.map(g => g.id === id ? { ...g, ...data } : g)
-            })),
-            deleteGroup: (id) => set(s => ({
-                groups: s.groups.filter(g => g.id !== id),
-                specifications: s.specifications.map(sp => ({
-                    ...sp,
-                    groupIds: sp.groupIds.filter(gid => gid !== id)
-                }))
-            })),
-
-            // ── Bulk setters (для загрузки с бэкенда) ──
-            setGroups:    (groups)    => set(s => ({ groups:    typeof groups    === 'function' ? groups(s.groups)    : groups })),
-            setCourses:   (courses)   => set(s => ({ courses:   typeof courses   === 'function' ? courses(s.courses)   : courses })),
-            setEmployees: (employees) => set(s => ({ employees: typeof employees === 'function' ? employees(s.employees) : employees })),
-            setCompanies:       (companies)      => set({ companies }),
-            setSpecifications:  (specifications) => set({ specifications }),
-
-            // ── Participants ──
-            addParticipant: (groupId, employeeId) => set(s => ({
-                groups: s.groups.map(g => {
-                    if (g.id !== groupId) return g
-                    if (g.participants.some(p => p.employeeId === employeeId)) return g
-                    return {
-                        ...g,
-                        participants: [...g.participants, {
-                            id: uid(),
-                            groupId,
-                            employeeId,
-                            progress: 0,
-                        }]
-                    }
-                })
-            })),
-
-            removeParticipant: (groupId, participantId) => set(s => ({
-                groups: s.groups.map(g => {
-                    if (g.id !== groupId) return g
-                    return { ...g, participants: g.participants.filter(p => p.id !== participantId) }
-                })
-            })),
-            updateParticipantProgress: (groupId, participantId, progress) => set(s => ({
-                groups: s.groups.map(g => {
-                    if (g.id !== groupId) return g
-                    return {
-                        ...g,
-                        participants: g.participants.map(p =>
-                            p.id === participantId
-                                ? { ...p, progress: Math.min(100, Math.max(0, Number(progress))) }
-                                : p
-                        )
-                    }
-                })
-            })),
-
-            // ── Specifications ──
-            addSpecification: (data) => set(s => {
-                const specId = uid()
-                const groupIds = data.groupIds || []
+            addParticipant: (groupId, employeeId) => set(s => {
+                const employee = s.employees.find(e => e.id === employeeId);
                 return {
-                    specifications: [...s.specifications, {
-                        id: specId,
-                        date: data.date || today(),
-                        number: data.number,
-                        companyId: data.companyId,
-                        groupIds,
-                    }],
-                    groups: s.groups.map(g =>
-                        groupIds.includes(g.id) ? { ...g, specId } : g
-                    )
-                }
-            }),
-            updateSpecification: (id, data) => set(s => {
-                const oldSpec = s.specifications.find(sp => sp.id === id)
-                const newGroupIds = data.groupIds || oldSpec?.groupIds || []
-                const oldGroupIds = oldSpec?.groupIds || []
-                return {
-                    specifications: s.specifications.map(sp =>
-                        sp.id === id ? { ...sp, ...data, groupIds: newGroupIds } : sp
-                    ),
                     groups: s.groups.map(g => {
-                        if (newGroupIds.includes(g.id)) return { ...g, specId: id }
-                        if (oldGroupIds.includes(g.id) && !newGroupIds.includes(g.id)) return { ...g, specId: null }
-                        return g
+                        if (g.id !== groupId) return g
+                        if (g.participants.some(p => p.employee_id === employeeId)) return g
+                        return {
+                            ...g,
+                            participants: [...g.participants, {
+                                participant_id: uid(),
+                                groupId,
+                                employee_id: employeeId,
+                                full_name: employee?.fullName || 'Неизвестный сотрудник',
+                                progress: 0,
+                            }]
+                        }
                     })
                 }
             }),
-            deleteSpecification: (id) => set(s => ({
-                specifications: s.specifications.filter(sp => sp.id !== id),
-                groups: s.groups.map(g => g.specId === id ? { ...g, specId: null } : g)
-            })),
 
-            // ── XML IMPORT ──
+            // ── XML IMPORT (Исправленный под структуру JSON бэкенда) ──
             importFromXML: (xmlString) => {
                 try {
                     const parser = new DOMParser()
@@ -361,7 +187,7 @@ export const useStore = create(
 
                     const imported = { employees: 0, courses: 0, companies: 0, groups: 0 }
 
-                    // Импорт компаний
+                    // 1. Импорт компаний
                     doc.querySelectorAll('Company').forEach(node => {
                         const id = node.getAttribute('id') || uid()
                         const code = node.querySelector('Code')?.textContent?.trim() || ''
@@ -374,7 +200,7 @@ export const useStore = create(
                         })
                     })
 
-                    // Импорт курсов (формат Edu_Course)
+                    // 2. Импорт курсов (Edu_Course)
                     doc.querySelectorAll('Edu_Course').forEach(node => {
                         const id = node.querySelector('id')?.textContent?.trim() || uid()
                         const name = node.querySelector('sCourseHL')?.textContent?.trim() || ''
@@ -394,41 +220,22 @@ export const useStore = create(
                         })
                     })
 
-                    // Импорт сотрудников (формат Edu_Participant)
+                    // 3. Импорт сотрудников (Edu_Participant)
                     doc.querySelectorAll('Edu_Participant').forEach(node => {
                         const id = node.querySelector('id')?.textContent?.trim() || uid()
                         const fullName = node.querySelector('sFIO')?.textContent?.trim() || ''
-                        const companyName = node.querySelector('idOrganizationHL')?.textContent?.trim() || ''
                         const companyId = node.querySelector('idOrganization')?.textContent?.trim() || ''
-
                         if (!fullName) return
-
                         set(s => {
                             if (s.employees.some(e => e.id === id)) return s
-
-                            // Если компании нет — создаём
-                            if (companyId && !s.companies.some(c => c.id === companyId)) {
-                                imported.companies++
-                                s.companies = [...s.companies, {
-                                    id: companyId,
-                                    code: companyId.slice(-4),
-                                    name: companyName || `Компания ${companyId}`
-                                }]
-                            }
-
                             imported.employees++
                             return {
-                                employees: [...s.employees, {
-                                    id,
-                                    fullName,
-                                    companyId: companyId || null,
-                                    email: ''
-                                }]
+                                employees: [...s.employees, { id, fullName, companyId, email: '' }]
                             }
                         })
                     })
 
-                    // Импорт учебных групп для диаграммы Ганта
+                    // 4. Импорт групп (TrainingGroup) — СИНХРОНИЗИРОВАНО С JSON
                     doc.querySelectorAll('TrainingGroup').forEach(node => {
                         const id = node.getAttribute('id') || uid()
                         const courseId = node.querySelector('CourseID')?.textContent?.trim() || ''
@@ -442,11 +249,16 @@ export const useStore = create(
                         node.querySelectorAll('Participant').forEach(pNode => {
                             const employeeId = pNode.querySelector('EmployeeID')?.textContent?.trim() || ''
                             const progress = Number(pNode.querySelector('Progress')?.textContent) || 0
+
+                            // Пытаемся найти имя сотрудника в сторе для full_name
+                            const employee = get().employees.find(e => e.id === employeeId);
+
                             if (employeeId) {
                                 participants.push({
-                                    id: uid(),
+                                    participant_id: uid(), // Совпадает с ключом из JSON
                                     groupId: id,
-                                    employeeId,
+                                    employee_id: employeeId, // Совпадает с ключом из JSON
+                                    full_name: employee?.fullName || 'Сотрудник загружен из XML', // Важно для UI
                                     progress: Math.min(100, Math.max(0, progress))
                                 })
                             }
@@ -457,11 +269,7 @@ export const useStore = create(
                             imported.groups++
                             return {
                                 groups: [...s.groups, {
-                                    id,
-                                    courseId,
-                                    startDate,
-                                    endDate,
-                                    status,
+                                    id, courseId, startDate, endDate, status,
                                     specId: null,
                                     participants
                                 }]
@@ -478,7 +286,7 @@ export const useStore = create(
         }),
         {
             name: 'erp-learning-store',
-            version: 1,
+            version: 2, // Поднял версию, так как структура участников изменилась
         }
     )
 )
