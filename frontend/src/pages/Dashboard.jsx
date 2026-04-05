@@ -2,12 +2,13 @@ import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
     GraduationCap, BookOpen, Users, FileText,
-    AlertTriangle, ChevronRight, Calendar, AlertCircle
+    AlertTriangle, ChevronRight
 } from 'lucide-react'
 import { useStore, calcGroupProgress, calcSpecTotals } from '../store/useStore.js'
 import StatusBadge from '../components/ui/StatusBadge.jsx'
 import PageHeader from '../components/ui/PageHeader.jsx'
 import GanttChart from '../components/GanttChart.jsx'
+
 
 const fmt = (n) => new Intl.NumberFormat('ru-RU').format(Math.round(n))
 
@@ -108,7 +109,7 @@ export default function Dashboard() {
                     </div>
                 ))}
             </div>
-
+            
             <div style={{ marginBottom: 24 }}>
                 <GanttChart 
                     groups={groups} 
@@ -117,7 +118,7 @@ export default function Dashboard() {
                 />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
                 {/* Recent groups */}
                 <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
                     <div style={{

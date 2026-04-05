@@ -1,20 +1,24 @@
 import React, { useState } from 'react'
 import { Plus, Edit2, Trash2, History, X, ChevronDown, ChevronUp } from 'lucide-react'
-import { useStore, getCurrentPrice, getPriceOnDate } from '../store/useStore.js'
+import { useStore, getCurrentPrice } from '../store/useStore.js'
 import PageHeader from '../components/ui/PageHeader.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import { useToast } from '../components/ui/Toast.jsx'
-import { format } from 'date-fns'
+import { courseService } from '../services/courseService.js'
 
 const fmt = (n) => new Intl.NumberFormat('ru-RU').format(Math.round(n))
 
 function CourseModal({ course, onClose, onSaved }) {
-    const { addCourse, updateCourse } = useStore()
+    // ✅ Убрали addCourse / updateCourse — теперь используем сервис
+    // ✅ Добавили setCourses для обновления стора после ответа бэкенда
+    const { setCourses } = useStore()
+    const toast = useToast()
+
     const [form, setForm] = useState({
-        name: course?.name || '',
-        description: course?.description || '',
+        name:         course?.name        || '',
+        description:  course?.description || '',
         durationDays: course?.durationDays || 1,
-        price: course ? getCurrentPrice(course) : '',
+        price:        course ? getCurrentPrice(course) : '',
     })
     const [errors, setErrors] = useState({})
 
@@ -27,14 +31,23 @@ function CourseModal({ course, onClose, onSaved }) {
         return Object.keys(e).length === 0
     }
 
-    function handleSubmit() {
+    // ✅ Переименовали handleSubmit_NEW → handleSubmit
+    // ✅ Теперь кнопка onClick={handleSubmit} работает
+    async function handleSubmit() {
         if (!validate()) return
-        if (course) {
-            updateCourse(course.id, form)
-        } else {
-            addCourse(form)
+
+        try {
+            if (course) {
+                const updated = await courseService.update(course.id, form)
+                setCourses(prev => prev.map(c => c.id === updated.id ? updated : c))
+            } else {
+                const created = await courseService.create(form)
+                setCourses(prev => [...prev, created])
+            }
+            onSaved()
+        } catch (err) {
+            toast(err.message || 'Ошибка сохранения', 'error')
         }
-        onSaved()
     }
 
     return (
@@ -70,14 +83,15 @@ function CourseModal({ course, onClose, onSaved }) {
                             {errors.price && <span className="form-error">{errors.price}</span>}
                             {course && (
                                 <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
-                  Изменение цены создаёт запись в истории
-                </span>
+                                    Изменение цены создаёт запись в истории
+                                </span>
                             )}
                         </div>
                     </div>
                 </div>
                 <div className="modal-footer">
                     <button className="btn btn-ghost btn-sm" onClick={onClose}>Отмена</button>
+                    {/* ✅ onClick={handleSubmit} — теперь имя совпадает с функцией выше */}
                     <button className="btn btn-primary btn-sm" onClick={handleSubmit}>
                         {course ? 'Сохранить' : 'Создать'}
                     </button>
@@ -89,11 +103,25 @@ function CourseModal({ course, onClose, onSaved }) {
 
 export default function CoursesPage() {
     const toast = useToast()
-    const { courses, deleteCourse, groups } = useStore()
-    const [showModal, setShowModal] = useState(false)
-    const [editTarget, setEditTarget] = useState(null)
+    // ✅ Убрали deleteCourse из стора — теперь удаление через сервис
+    // ✅ Добавили setCourses для обновления стора после удаления
+    const { courses, groups, setCourses } = useStore()
+    const [showModal, setShowModal]       = useState(false)
+    const [editTarget, setEditTarget]     = useState(null)
     const [deleteTarget, setDeleteTarget] = useState(null)
-    const [historyOpen, setHistoryOpen] = useState(null)
+    const [historyOpen, setHistoryOpen]   = useState(null)
+
+    // ✅ Новая функция удаления — идёт на бэкенд, потом обновляет стор
+    async function handleDelete() {
+        try {
+            await courseService.delete(deleteTarget.id)
+            setCourses(prev => prev.filter(c => c.id !== deleteTarget.id))
+            toast('Курс удалён', 'info')
+            setDeleteTarget(null)
+        } catch (err) {
+            toast(err.message || 'Ошибка удаления', 'error')
+        }
+    }
 
     return (
         <div className="page-enter">
@@ -121,7 +149,7 @@ export default function CoursesPage() {
                     </thead>
                     <tbody>
                     {courses.map(c => {
-                        const price = getCurrentPrice(c)
+                        const price      = getCurrentPrice(c)
                         const groupCount = groups.filter(g => g.courseId === c.id).length
                         const isHistOpen = historyOpen === c.id
 
@@ -143,13 +171,13 @@ export default function CoursesPage() {
                                         {fmt(price)} ₽
                                     </td>
                                     <td style={{ textAlign: 'center' }}>
-                      <span className="badge" style={{
-                          background: 'var(--glass-2)',
-                          border: '1px solid var(--border-subtle)',
-                          color: 'var(--text-secondary)',
-                      }}>
-                        {groupCount} гр.
-                      </span>
+                                        <span className="badge" style={{
+                                            background: 'var(--glass-2)',
+                                            border: '1px solid var(--border-subtle)',
+                                            color: 'var(--text-secondary)',
+                                        }}>
+                                            {groupCount} гр.
+                                        </span>
                                     </td>
                                     <td>
                                         <button
@@ -194,12 +222,12 @@ export default function CoursesPage() {
                                                                 display: 'flex', alignItems: 'center', gap: 16,
                                                                 fontSize: 12, color: 'var(--text-secondary)',
                                                             }}>
-                                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)' }}>
-                                  {h.validFrom}
-                                </span>
+                                                                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)' }}>
+                                                                    {h.validFrom}
+                                                                </span>
                                                                 <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
-                                  {fmt(h.price)} ₽
-                                </span>
+                                                                    {fmt(h.price)} ₽
+                                                                </span>
                                                                 {i === 0 && (
                                                                     <span className="badge" style={{
                                                                         background: 'var(--accent-green-dim)',
@@ -220,7 +248,9 @@ export default function CoursesPage() {
                     {courses.length === 0 && (
                         <tr>
                             <td colSpan={6}>
-                                <div className="empty-state"><div className="empty-state-title">Нет курсов</div></div>
+                                <div className="empty-state">
+                                    <div className="empty-state-title">Нет курсов</div>
+                                </div>
                             </td>
                         </tr>
                     )}
@@ -233,7 +263,8 @@ export default function CoursesPage() {
                     course={editTarget}
                     onClose={() => { setShowModal(false); setEditTarget(null) }}
                     onSaved={() => {
-                        setShowModal(false); setEditTarget(null)
+                        setShowModal(false)
+                        setEditTarget(null)
                         toast(editTarget ? 'Курс обновлён' : 'Курс создан', 'success')
                     }}
                 />
@@ -243,11 +274,7 @@ export default function CoursesPage() {
                 <ConfirmDialog
                     title="Удалить курс?"
                     message={`Курс «${deleteTarget.name}» будет удалён. Существующие группы сохранятся.`}
-                    onConfirm={() => {
-                        deleteCourse(deleteTarget.id)
-                        toast('Курс удалён', 'info')
-                        setDeleteTarget(null)
-                    }}
+                    onConfirm={handleDelete}
                     onCancel={() => setDeleteTarget(null)}
                 />
             )}

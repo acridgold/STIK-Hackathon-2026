@@ -1,3 +1,4 @@
+
 /**
  * GLOBAL STORE — Zustand
  * Хранит все сущности системы: компании, курсы, сотрудники, группы, спецификации.
@@ -269,6 +270,13 @@ export const useStore = create(
                 }))
             })),
 
+            // ── Bulk setters (для загрузки с бэкенда) ──
+            setGroups:    (groups)    => set(s => ({ groups:    typeof groups    === 'function' ? groups(s.groups)    : groups })),
+            setCourses:   (courses)   => set(s => ({ courses:   typeof courses   === 'function' ? courses(s.courses)   : courses })),
+            setEmployees: (employees) => set(s => ({ employees: typeof employees === 'function' ? employees(s.employees) : employees })),
+            setCompanies:       (companies)      => set({ companies }),
+            setSpecifications:  (specifications) => set({ specifications }),
+
             // ── Participants ──
             addParticipant: (groupId, employeeId) => set(s => ({
                 groups: s.groups.map(g => {
@@ -285,6 +293,7 @@ export const useStore = create(
                     }
                 })
             })),
+
             removeParticipant: (groupId, participantId) => set(s => ({
                 groups: s.groups.map(g => {
                     if (g.id !== groupId) return g
@@ -391,12 +400,12 @@ export const useStore = create(
                         const fullName = node.querySelector('sFIO')?.textContent?.trim() || ''
                         const companyName = node.querySelector('idOrganizationHL')?.textContent?.trim() || ''
                         const companyId = node.querySelector('idOrganization')?.textContent?.trim() || ''
-                        
+
                         if (!fullName) return
-                        
+
                         set(s => {
                             if (s.employees.some(e => e.id === id)) return s
-                            
+
                             // Если компании нет — создаём
                             if (companyId && !s.companies.some(c => c.id === companyId)) {
                                 imported.companies++
@@ -406,7 +415,7 @@ export const useStore = create(
                                     name: companyName || `Компания ${companyId}`
                                 }]
                             }
-                            
+
                             imported.employees++
                             return {
                                 employees: [...s.employees, {
@@ -426,9 +435,9 @@ export const useStore = create(
                         const startDate = node.querySelector('StartDate')?.textContent?.trim() || ''
                         const endDate = node.querySelector('EndDate')?.textContent?.trim() || ''
                         const status = node.querySelector('Status')?.textContent?.trim() || 'planned'
-                        
+
                         if (!courseId || !startDate || !endDate) return
-                        
+
                         const participants = []
                         node.querySelectorAll('Participant').forEach(pNode => {
                             const employeeId = pNode.querySelector('EmployeeID')?.textContent?.trim() || ''
@@ -442,7 +451,7 @@ export const useStore = create(
                                 })
                             }
                         })
-                        
+
                         set(s => {
                             if (s.groups.some(g => g.id === id)) return s
                             imported.groups++

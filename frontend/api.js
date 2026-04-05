@@ -1,57 +1,3 @@
-/**
- * API SERVICE LAYER
- * ─────────────────────────────────────────────────────────────
- * Все обращения к бэкенду (Go + Gin) централизованы здесь.
- * Текущая версия MVP использует Zustand store (localStorage).
- * При подключении реального бэкенда — замените функции ниже
- * на реальные fetch/axios вызовы к соответствующим эндпоинтам.
- *
- * BACKEND ENDPOINTS (Go + Gin):
- *
- * Companies:
- *   GET    /api/companies
- *   POST   /api/companies
- *   PUT    /api/companies/:id
- *   DELETE /api/companies/:id
- *
- * Courses:
- *   GET    /api/courses
- *   POST   /api/courses
- *   PUT    /api/courses/:id
- *   DELETE /api/courses/:id
- *   GET    /api/courses/:id/price-history
- *
- * Employees:
- *   GET    /api/employees
- *   POST   /api/employees
- *   PUT    /api/employees/:id
- *   DELETE /api/employees/:id
- *
- * Groups:
- *   GET    /api/groups
- *   GET    /api/groups/:id
- *   POST   /api/groups
- *   PUT    /api/groups/:id
- *   DELETE /api/groups/:id
- *   POST   /api/groups/:id/participants
- *   DELETE /api/groups/:id/participants/:pid
- *   PATCH  /api/groups/:id/participants/:pid/progress
- *
- * Specifications:
- *   GET    /api/specifications
- *   GET    /api/specifications/:id
- *   POST   /api/specifications
- *   PUT    /api/specifications/:id
- *   DELETE /api/specifications/:id
- *
- * XML Integration:
- *   POST   /api/import/xml   (multipart/form-data, field: file)
- *
- * Analytics:
- *   GET    /api/analytics/companies        — сводка по компаниям
- *   GET    /api/analytics/schedule-conflicts — конфликты расписания
- */
-
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api'
 
 async function request(method, path, body) {
@@ -93,8 +39,8 @@ export const api = {
     createGroup: (data) => request('POST', '/groups', data),
     updateGroup: (id, data) => request('PUT', `/groups/${id}`, data),
     deleteGroup: (id) => request('DELETE', `/groups/${id}`),
-    addParticipant: (groupId, employeeId) =>
-        request('POST', `/groups/${groupId}/participants`, { employeeId }),
+    addParticipant: (groupId, employee_id) =>
+        request('POST', `/groups/${groupId}/participants`, { employee_id }),
     removeParticipant: (groupId, pid) =>
         request('DELETE', `/groups/${groupId}/participants/${pid}`),
     updateProgress: (groupId, pid, progress) =>
@@ -108,16 +54,13 @@ export const api = {
     deleteSpecification: (id) => request('DELETE', `/specifications/${id}`),
 
     // XML import
-    importXML: (file) => {
+    importXML: (file, type) => {
         const form = new FormData()
         form.append('file', file)
-        return fetch(`${BASE_URL}/import/xml`, { method: 'POST', body: form })
+        form.append('type', type)   // 'courses' | 'employees' | 'groups'
+        return fetch(`${BASE_URL}/xml/upload`, { method: 'POST', body: form })
             .then(r => r.json())
-    },
-
-    // Analytics
-    getCompanyAnalytics: () => request('GET', '/analytics/companies'),
-    getScheduleConflicts: () => request('GET', '/analytics/schedule-conflicts'),
+    }
 }
 
 export default api

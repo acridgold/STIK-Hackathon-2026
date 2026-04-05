@@ -18,9 +18,9 @@ pi==0.1.2
 psycopg2-binary==2.9.11
 pydantic==2.12.5
 pydantic_core==2.41.5
+python-dotenv==1.2.1
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 Werkzeug==3.1.8
-zipp==3.23.0
-python-dotenv==1.2.1
 xmltodict==1.0.4
+zipp==3.23.0

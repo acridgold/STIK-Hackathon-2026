@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { X } from 'lucide-react'
 import { useStore, getPriceOnDate } from '../../store/useStore.js'
-import { STATUS_OPTIONS } from './StatusBadge.jsx'
+import { STATUS_OPTIONS } from './components/ui/StatusBadge.jsx'
 import { addDays, format } from 'date-fns'
 
 export default function GroupModal({ group, onClose, onSaved }) {
