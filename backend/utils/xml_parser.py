@@ -173,64 +173,77 @@ class XMLParser:
 
     @staticmethod
     def _validate_employee(node: Dict, index: int) -> Dict:
-        """Валидирует одну запись участника обучения из XML."""
-        prefix = f"Участник обучения #{index + 1}"
+        """Валидирует одного участника обучения из XML (Edu_Participant)"""
+        prefix = f"Участник #{index + 1}"
 
-        full_name = _require(node, 'sFIO', f"{prefix}: ФИО")
-        if len(full_name) > 255:
-            raise XMLValidationError(f"{prefix}: ФИО не должно превышать 255 символов")
+        # Основные обязательные поля
+        last_name = _require(node, 'sLastName', f"{prefix}: фамилия")
+        first_name = _require(node, 'sFirstName', f"{prefix}: имя")
+        middle_name = _get_text(node, 'sMiddleName')
 
-        company_id_raw = _require(node, 'idOrganization', f"{prefix}: ID организации")
+        # Формируем полное ФИО
+        full_name_parts = [last_name, first_name]
+        if middle_name:
+            full_name_parts.append(middle_name)
+        full_name = " ".join(full_name_parts)
+
+        # ID организации
+        organization_id_raw = _require(node, 'idOrganization', f"{prefix}: idOrganization")
         try:
-            company_id = int(company_id_raw)
+            company_id = int(organization_id_raw)
         except ValueError:
             raise XMLValidationError(
-                f"{prefix}: idOrganization должен быть числом, получено: '{company_id_raw}'"
+                f"{prefix}: idOrganization должен быть числом, получено: '{organization_id_raw}'"
             )
 
-        email = _get_text(node, 'email')
-        if email and '@' not in email:
-            raise XMLValidationError(f"{prefix}: некорректный email '{email}'")
+        # Дополнительные поля
+        code = _get_text(node, 'sCode')
+        external_id = _get_text(node, 'id')
+        organization_name = _get_text(node, 'idOrganizationHL')  # название организации из XML
+
+        # Проверка длины ФИО
+        if len(full_name) > 255:
+            raise XMLValidationError(f"{prefix}: ФИО слишком длинное (максимум 255 символов)")
 
         return {
             "full_name": full_name,
+            "last_name": last_name,
+            "first_name": first_name,
+            "middle_name": middle_name,
             "company_id": company_id,
-            "email": email,
-            "external_id": _get_text(node, 'id'),
-            "code": _get_text(node, 'sCode'),
+            "company_name_from_xml": organization_name,  # временно сохраняем, чтобы потом денормализовать
+            "email": None,  # в твоём примере email отсутствует
+            "external_id": external_id,
+            "code": code,
         }
 
     @staticmethod
     def save_employees_from_xml(parsed: Dict[str, Any], repo: EmployeeRepositoryInterface) -> Tuple[int, List[str]]:
-        """Сохраняет участников обучения из распарсенного XML в БД."""
+        """Сохраняет участников обучения из XML"""
         root_key = next(iter(parsed), None)
         if root_key is None:
             raise XMLValidationError("XML файл пустой")
 
-        root = parsed[root_key]
-
+        # Поддержка как одиночного элемента, так и списка
         if root_key == 'Edu_Participant':
-            nodes = [root]
-        elif 'Edu_Participant' in root:
-            nodes = _normalize_to_list(root['Edu_Participant'])
-        elif 'employee' in root:
-            nodes = _normalize_to_list(root['employee'])
+            nodes = [parsed[root_key]]
         else:
-            raise XMLValidationError(
-                f"Неизвестная структура XML для участников обучения. "
-                f"Ожидается корневой тег <Edu_Participant> или <Edu_Participants>. "
-                f"Получен: <{root_key}>"
-            )
+            root = parsed[root_key]
+            nodes = _normalize_to_list(root.get('Edu_Participant') or root.get('employee'))
 
         if not nodes:
-            raise XMLValidationError("XML не содержит ни одной записи участника обучения")
+            raise XMLValidationError("XML не содержит записей Edu_Participant")
 
-        warnings = []
+        warnings: List[str] = []
         count = 0
 
         for i, node in enumerate(nodes):
-            employee_data = XMLParser._validate_employee(node, i)
-            repo.create(employee_data)
-            count += 1
+            try:
+                employee_data = XMLParser._validate_employee(node, i)
+                repo.create(employee_data)  # ← здесь создаётся объект в БД
+                count += 1
+            except XMLValidationError as e:
+                warnings.append(str(e))
+                continue  # можно продолжить обработку остальных записей
 
         return count, warnings
