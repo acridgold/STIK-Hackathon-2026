@@ -11,10 +11,6 @@ from schemas.participant_schema import ParticipantAdd, ParticipantProgressUpdate
 groups_bp = Blueprint("groups", __name__)
 
 
-# ------------------------------------------------------------------ #
-#  CRUD групп                                                          #
-# ------------------------------------------------------------------ #
-
 @groups_bp.route("", methods=["GET"])
 def get_groups():
     """Получить все группы"""
@@ -76,9 +72,6 @@ def delete_group(group_id: str):
     return jsonify({"message": "Group successfully deleted"}), 200
 
 
-# ------------------------------------------------------------------ #
-#  Участники группы                                                    #
-# ------------------------------------------------------------------ #
 
 @groups_bp.route("/<group_id>/participants", methods=["POST"])
 def add_participant(group_id: str):
