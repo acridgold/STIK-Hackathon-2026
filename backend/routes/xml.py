@@ -23,7 +23,6 @@ def upload_xml():
     if not file:
         return jsonify({"error": "Файл не передан"}), 400
 
-    # Проверяем расширение файла
     if not file.filename.endswith('.xml'):
         return jsonify({"error": "Ожидается файл с расширением .xml"}), 400
 
@@ -32,7 +31,6 @@ def upload_xml():
     except Exception as e:
         return jsonify({"error": f"Не удалось распарсить XML: {str(e)}"}), 400
 
-    # Автоопределение типа если не передан явно
     if not data_type:
         data_type = detect_xml_type(xml_data)
         if data_type == 'unknown':
@@ -52,10 +50,8 @@ def upload_xml():
             }), 400
 
     except ForeignKeyValidationError as e:
-        # 🔥 Отдельная обработка ошибок внешних ключей (400)
         return jsonify({"error": str(e)}), 400
     except XMLValidationError as e:
-        # Ошибка валидации данных — понятное сообщение для пользователя (400)
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": f"Ошибка сохранения в БД: {str(e)}"}), 500
@@ -69,15 +65,6 @@ def upload_xml():
 
 @xml_bp.route('/sync', methods=['POST'])
 def sync_xml():
-    """
-    Загрузка нескольких XML файлов одновременно.
-
-    Параметры form-data:
-      courses   — XML файл с курсами    (необязательный)
-      employees — XML файл с участниками (необязательный)
-
-    Хотя бы один файл должен быть передан.
-    """
     courses_file = request.files.get('courses')
     employees_file = request.files.get('employees')
 
@@ -88,7 +75,6 @@ def sync_xml():
     all_warnings = []
     errors = []
 
-    # Обрабатываем каждый файл независимо — ошибка в одном не останавливает остальные
     if courses_file:
         try:
             data = xmltodict.parse(courses_file.read(), encoding='utf-8')
@@ -103,7 +89,6 @@ def sync_xml():
     if employees_file:
         try:
             data = xmltodict.parse(employees_file.read(), encoding='utf-8')
-            # 🔥 Исправлено: используем participant_repository
             count, warnings = XMLParser.save_employees_from_xml(data, employee_repository)
             imported["employees"] = count
             all_warnings.extend(warnings)
@@ -121,6 +106,5 @@ def sync_xml():
     if errors:
         response["errors"] = errors
 
-    # 207 Multi-Status — часть прошла, часть нет
     status_code = 200 if len(errors) == 0 else 207
     return jsonify(response), status_code

@@ -31,12 +31,10 @@ class CompanyRepository(CompanyRepositoryInterface):
             return None
 
         if not data:
-            # Если ничего не пришло на обновление — просто возвращаем текущую запись
             return self.get_by_id(company_id)
 
         fields = ", ".join(f"{k} = %({k})s" for k in data.keys())
 
-        # Добавляем company_id в параметры
         params = data.copy()
         params["company_id"] = company_id_int
 
@@ -67,7 +65,7 @@ class CompanyRepository(CompanyRepositoryInterface):
                 )
                 return cur.rowcount > 0
 
-    # Добавил вспомогательный метод для удобства (используется в update)
+
     def get_by_id(self, company_id: str) -> Optional[Dict]:
         company_id_int = safe_int(company_id)
         if company_id_int is None:

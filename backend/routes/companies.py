@@ -28,7 +28,6 @@ def create_company():
 @companies_bp.route("/<company_id>", methods=["PUT"])
 def update_company(company_id: str):
     try:
-        # Для обновления используем частичную модель
         data = CompanyUpdate.model_validate(request.json)
         company = company_repository.update(company_id, data.model_dump(exclude_unset=True))
 
