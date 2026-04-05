@@ -4,6 +4,6 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "sh -c 'gunicorn app:app --bind 0.0.0.0:$PORT'"
+    "startCommand": "export PYTHONPATH=$PYTHONPATH:. && gunicorn app:app --bind 0.0.0.0:$PORT"
   }
 }
