@@ -1,32 +1,43 @@
 -- ========================================================
--- SQL Скрипт инициализации БД для Хакатона "Global ERP"
--- Данный файл предназначен для папки /docker-entrypoint-initdb.d/
+-- SQL Скрипт инициализации БД + тестовые данные
+-- Для папки /docker-entrypoint-initdb.d/
 -- ========================================================
 
--- 1. Таблица "Компания" (п. 2.2.6)
+-- ========================================================
+-- 1. Таблица компаний
+-- ========================================================
 CREATE TABLE companies (
-                           company_id SERIAL PRIMARY KEY,
-                           company_code VARCHAR(4) NOT NULL,
-                           company_name VARCHAR(255) NOT NULL
+    company_id SERIAL PRIMARY KEY,
+    company_code VARCHAR(4) NOT NULL UNIQUE,
+    company_name VARCHAR(255) NOT NULL
 );
 
--- 2. Таблица "Участник обучения" (п. 2.2.1)
+-- ========================================================
+-- 2. Таблица участников обучения (employees)
+-- ========================================================
 CREATE TABLE employees (
-                           employee_id SERIAL PRIMARY KEY,
-                           full_name VARCHAR(255) NOT NULL,
-                           company_id INT REFERENCES companies(company_id) ON DELETE SET NULL,
-                           email VARCHAR(255)
+    employee_id SERIAL PRIMARY KEY,
+    full_name VARCHAR(255) NOT NULL,
+    company_id INT REFERENCES companies(company_id) ON DELETE SET NULL,
+    email VARCHAR(255),
+    code VARCHAR(10),
+    external_id VARCHAR(50)
 );
 
--- 3. Таблица "Курс обучения" (п. 2.2.2)
+-- ========================================================
+-- 3. Таблица курсов
+-- ========================================================
 CREATE TABLE courses (
-                         course_id SERIAL PRIMARY KEY,
-                         course_name VARCHAR(255) NOT NULL,
-                         description TEXT,
-                         duration_days INT NOT NULL,
-                         price_per_person NUMERIC(12, 2) NOT NULL
+    course_id SERIAL PRIMARY KEY,
+    course_name VARCHAR(255) NOT NULL,
+    description TEXT,
+    duration_days INT NOT NULL CHECK (duration_days > 0),
+    price_per_person NUMERIC(12, 2) NOT NULL CHECK (price_per_person > 0)
 );
 
+-- ========================================================
+-- 4. История изменения цен курсов
+-- ========================================================
 CREATE TABLE course_price_history (
     id SERIAL PRIMARY KEY,
     course_id INT REFERENCES courses(course_id) ON DELETE CASCADE,
@@ -35,60 +46,107 @@ CREATE TABLE course_price_history (
     valid_to DATE
 );
 
--- 4. Таблица "Спецификация" (п. 2.2.5)
+-- ========================================================
+-- 5. Спецификации
+-- ========================================================
 CREATE TABLE specifications (
-                                document_id SERIAL PRIMARY KEY,
-                                doc_date DATE NOT NULL DEFAULT CURRENT_DATE,
-                                doc_number VARCHAR(50) NOT NULL UNIQUE,
-                                company_id INT REFERENCES companies(company_id) ON DELETE RESTRICT
+    document_id SERIAL PRIMARY KEY,
+    doc_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    doc_number VARCHAR(50) NOT NULL UNIQUE,
+    company_id INT REFERENCES companies(company_id) ON DELETE RESTRICT
 );
 
--- 5. Таблица "Учебная группа" (п. 2.2.3)
+-- ========================================================
+-- 6. Учебные группы
+-- ========================================================
 CREATE TABLE study_groups (
-                              group_id SERIAL PRIMARY KEY,
-                              course_id INT REFERENCES courses(course_id) ON DELETE RESTRICT,
-                              start_date DATE NOT NULL,
-                              end_date DATE NOT NULL,
-                              actual_price_per_person NUMERIC(12, 2) NOT NULL, -- Фиксация цены на момент создания
-                              status VARCHAR(50) DEFAULT 'Планируется',
-                              specification_id INT REFERENCES specifications(document_id) ON DELETE SET NULL
+    group_id SERIAL PRIMARY KEY,
+    course_id INT REFERENCES courses(course_id) ON DELETE RESTRICT,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL CHECK (end_date > start_date),
+    actual_price_per_person NUMERIC(12, 2) NOT NULL,
+    status VARCHAR(50) DEFAULT 'Планируется',
+    specification_id INT REFERENCES specifications(document_id) ON DELETE SET NULL
 );
 
--- 6. Таблица "Участник группы" (п. 2.2.4)
+-- ========================================================
+-- 7. Участники групп
+-- ========================================================
 CREATE TABLE group_participants (
-                                    participant_id SERIAL PRIMARY KEY,
-                                    group_id INT REFERENCES study_groups(group_id) ON DELETE CASCADE,
-                                    employee_id INT REFERENCES employees(employee_id) ON DELETE CASCADE,
-                                    completion_percentage NUMERIC(5, 2) DEFAULT 0.00 CHECK (completion_percentage >= 0 AND completion_percentage <= 100),
-                                    UNIQUE(group_id, employee_id)
+    participant_id SERIAL PRIMARY KEY,
+    group_id INT REFERENCES study_groups(group_id) ON DELETE CASCADE,
+    employee_id INT REFERENCES employees(employee_id) ON DELETE CASCADE,
+    completion_percentage NUMERIC(5, 2) DEFAULT 0.00
+        CHECK (completion_percentage >= 0 AND completion_percentage <= 100),
+    UNIQUE(group_id, employee_id)
 );
 
----- ========================================================
----- ПРЕДСТАВЛЕНИЯ (VIEWS) ДЛЯ АВТОМАТИЧЕСКИХ ВЫЧИСЛЕНИЙ
----- ========================================================
---
----- Расчет агрегатов по группам (кол-во человек, стоимость, средний прогресс)
---CREATE OR REPLACE VIEW v_study_groups_summary AS
---SELECT
---    sg.group_id,
---    c.course_name,
---    sg.start_date,
---    sg.end_date,
---    sg.status,
---    sg.actual_price_per_person,
---    COUNT(gp.participant_id) AS participants_count,
---    (COUNT(gp.participant_id) * sg.actual_price_per_person) AS total_group_cost,
---    COALESCE(AVG(gp.completion_percentage), 0) AS average_progress,
---    sg.specification_id
---FROM
---    study_groups sg
---        JOIN
---    courses c ON sg.course_id = c.course_id
---        LEFT JOIN
---    group_participants gp ON sg.group_id = gp.group_id
---GROUP BY
---    sg.group_id, c.course_name, sg.start_date, sg.end_date, sg.status, sg.actual_price_per_person;
---
+-- ========================================================
+-- ЗАПОЛНЕНИЕ ТЕСТОВЫМИ ДАННЫМИ
+-- ========================================================
+
+-- 1. Компании
+INSERT INTO companies (company_code, company_name) VALUES
+('0001', 'ООО "Ромашка"'),
+('0002', 'АО "Тюльпан"'),
+('0003', 'ИП Иванов И.И.'),
+('0004', 'ООО "Василёк"'),
+('0005', 'АО "Глобус"')
+ON CONFLICT DO NOTHING;
+
+-- 2. Участники обучения (employees)
+INSERT INTO employees (full_name, company_id, email, code, external_id) VALUES
+('Иванов Иван Иванович', 1, 'ivanov.ii@romashka.ru', '0048', '1203'),
+('Петров Сергей Александрович', 1, 'petrov.sa@romashka.ru', '0051', '1204'),
+('Сидорова Анна Петровна', 2, 'sidorova.ap@tulpan.ru', '0072', '1301'),
+('Козлов Дмитрий Сергеевич', 1, NULL, '0089', '1205'),
+('Морозова Екатерина Викторовна', 3, 'morozova.ev@ipivanov.ru', '0105', '1402'),
+('Васильев Олег Николаевич', 4, 'vasilev.on@vasilek.ru', '0112', '1501'),
+('Фёдорова Ольга Андреевна', 2, 'fedorova.oa@tulpan.ru', '0123', '1302')
+ON CONFLICT DO NOTHING;
+
+-- 3. Курсы обучения
+INSERT INTO courses (course_name, description, duration_days, price_per_person) VALUES
+('Основы делового общения', 'Развитие навыков эффективной коммуникации в бизнес-среде', 2, 8500.00),
+('Управление проектами', 'Методики планирования и контроля проектов (PMBOK)', 5, 24500.00),
+('1С: Предприятие для пользователей', 'Работа с конфигурациями 1С: Бухгалтерия и ЗУП', 3, 12000.00),
+('Охрана труда и техника безопасности', 'Обязательное обучение по охране труда', 1, 4500.00),
+('Продажи и работа с возражениями', 'Техники активных продаж и работы с клиентами', 3, 15800.00),
+('Excel для аналитики и отчётности', 'Продвинутый уровень: формулы, сводные таблицы, Power Query', 2, 9800.00)
+ON CONFLICT DO NOTHING;
+
+-- 4. История цен (пример для первых двух курсов)
+INSERT INTO course_price_history (course_id, price, valid_from, valid_to) VALUES
+(1, 8500.00, '2025-01-01', NULL),
+(2, 24500.00, '2025-01-01', NULL),
+(5, 15800.00, '2025-01-01', NULL);
+
+-- 5. Спецификации (документы-основания)
+INSERT INTO specifications (doc_date, doc_number, company_id) VALUES
+('2026-03-01', 'SPEC-2026/001', 1),
+('2026-03-15', 'SPEC-2026/002', 2),
+('2026-04-01', 'SPEC-2026/003', 1);
+
+-- 6. Учебные группы
+INSERT INTO study_groups (course_id, start_date, end_date, actual_price_per_person, status, specification_id) VALUES
+(1, '2026-04-10', '2026-04-11', 8500.00, 'Планируется', 1),
+(2, '2026-05-05', '2026-05-09', 24500.00, 'Планируется', 1),
+(5, '2026-04-20', '2026-04-22', 15800.00, 'В процессе', 3),
+(6, '2026-06-01', '2026-06-02', 9800.00, 'Планируется', 2);
+
+-- 7. Участники групп (привязка сотрудников к группам)
+INSERT INTO group_participants (group_id, employee_id, completion_percentage) VALUES
+(1, 1, 0.00),   -- Иванов в группу "Деловое общение"
+(1, 2, 0.00),   -- Петров в группу "Деловое общение"
+(2, 3, 0.00),   -- Сидорова в "Управление проектами"
+(3, 1, 45.00),  -- Иванов в "Продажи" (уже началась)
+(3, 4, 30.00),  -- Козлов в "Продажи"
+(4, 6, 0.00);   -- Васильев в Excel
+
+-- ========================================================
+-- ПРЕДСТАВЛЕНИЯ (Views)
+-- ========================================================
+
 
 CREATE OR REPLACE VIEW v_employees_full AS
 SELECT
@@ -96,9 +154,12 @@ SELECT
     e.full_name,
     e.company_id,
     c.company_name,
-    e.email
+    e.email,
+    e.code,
+    e.external_id
 FROM employees e
 LEFT JOIN companies c ON e.company_id = c.company_id;
+
 
 
 CREATE OR REPLACE VIEW v_study_groups_full AS
@@ -109,37 +170,22 @@ SELECT
     sg.start_date,
     sg.end_date,
     sg.status,
-    sg.specification_id,
     sg.actual_price_per_person,
+    sg.specification_id,
     COUNT(gp.participant_id) AS participant_count,
-    COALESCE(JSON_AGG(
-        JSON_BUILD_OBJECT(
-            'id', gp.participant_id,
-            'employee_id', gp.employee_id,
-            'progress', gp.completion_percentage
-        )
-    ) FILTER (WHERE gp.participant_id IS NOT NULL), '[]') AS participants
+    COALESCE(
+        JSON_AGG(
+            JSON_BUILD_OBJECT(
+                'participant_id', gp.participant_id,
+                'employee_id', gp.employee_id,
+                'full_name', e.full_name,
+                'progress', gp.completion_percentage
+            )
+        ) FILTER (WHERE gp.participant_id IS NOT NULL),
+    '[]') AS participants
 FROM study_groups sg
 JOIN courses c ON sg.course_id = c.course_id
 LEFT JOIN group_participants gp ON sg.group_id = gp.group_id
-GROUP BY sg.group_id, c.course_name;
-
---
----- Расчет итогов Спецификации (Сумма без НДС, НДС 22%, Итого)
---CREATE OR REPLACE VIEW v_specifications_summary AS
---SELECT
---    s.document_id,
---    s.doc_number,
---    s.doc_date,
---    comp.company_name,
---    COALESCE(SUM(vsg.total_group_cost), 0) AS total_without_vat,
---    COALESCE(SUM(vsg.total_group_cost), 0) * 0.22 AS vat_amount,
---    COALESCE(SUM(vsg.total_group_cost), 0) * 1.22 AS total_with_vat
---FROM
---    specifications s
---        JOIN
---    companies comp ON s.company_id = comp.company_id
---        LEFT JOIN
---    v_study_groups_summary vsg ON s.document_id = vsg.specification_id
---GROUP BY
---    s.document_id, s.doc_number, s.doc_date, comp.company_name;
+LEFT JOIN employees e ON gp.employee_id = e.employee_id
+GROUP BY sg.group_id, c.course_name, sg.start_date, sg.end_date,
+         sg.status, sg.actual_price_per_person, sg.specification_id;
