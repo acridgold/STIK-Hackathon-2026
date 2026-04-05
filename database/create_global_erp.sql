@@ -3,78 +3,78 @@
 -- 1. Таблица компаний
 -- ========================================================
 CREATE TABLE companies (
-    company_id SERIAL PRIMARY KEY,
-    company_code VARCHAR(4) NOT NULL UNIQUE,
-    company_name VARCHAR(255) NOT NULL
+                           company_id SERIAL PRIMARY KEY,
+                           company_code VARCHAR(4) NOT NULL UNIQUE,
+                           company_name VARCHAR(255) NOT NULL
 );
 
 -- ========================================================
 -- 2. Таблица участников обучения (employees)
 -- ========================================================
 CREATE TABLE employees (
-    employee_id SERIAL PRIMARY KEY,
-    full_name VARCHAR(255) NOT NULL,
-    company_id INT REFERENCES companies(company_id) ON DELETE SET NULL,
-    email VARCHAR(255),
-    code VARCHAR(10),
-    external_id VARCHAR(50)
+                           employee_id SERIAL PRIMARY KEY,
+                           full_name VARCHAR(255) NOT NULL,
+                           company_id INT REFERENCES companies(company_id) ON DELETE SET NULL,
+                           email VARCHAR(255),
+                           code VARCHAR(10),
+                           external_id VARCHAR(50)
 );
 
 -- ========================================================
 -- 3. Таблица курсов
 -- ========================================================
 CREATE TABLE courses (
-    course_id SERIAL PRIMARY KEY,
-    course_name VARCHAR(255) NOT NULL,
-    description TEXT,
-    duration_days INT NOT NULL CHECK (duration_days > 0),
-    price_per_person NUMERIC(12, 2) NOT NULL CHECK (price_per_person > 0)
+                         course_id SERIAL PRIMARY KEY,
+                         course_name VARCHAR(255) NOT NULL,
+                         description TEXT,
+                         duration_days INT NOT NULL CHECK (duration_days > 0),
+                         price_per_person NUMERIC(12, 2) NOT NULL CHECK (price_per_person > 0)
 );
 
 -- ========================================================
 -- 4. История изменения цен курсов
 -- ========================================================
 CREATE TABLE course_price_history (
-    id SERIAL PRIMARY KEY,
-    course_id INT REFERENCES courses(course_id) ON DELETE CASCADE,
-    price NUMERIC(12,2) NOT NULL,
-    valid_from DATE NOT NULL,
-    valid_to DATE
+                                      id SERIAL PRIMARY KEY,
+                                      course_id INT REFERENCES courses(course_id) ON DELETE CASCADE,
+                                      price NUMERIC(12,2) NOT NULL,
+                                      valid_from DATE NOT NULL,
+                                      valid_to DATE
 );
 
 -- ========================================================
 -- 5. Спецификации
 -- ========================================================
 CREATE TABLE specifications (
-    document_id SERIAL PRIMARY KEY,
-    doc_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    doc_number VARCHAR(50) NOT NULL UNIQUE,
-    company_id INT REFERENCES companies(company_id) ON DELETE RESTRICT
+                                document_id SERIAL PRIMARY KEY,
+                                doc_date DATE NOT NULL DEFAULT CURRENT_DATE,
+                                doc_number VARCHAR(50) NOT NULL UNIQUE,
+                                company_id INT REFERENCES companies(company_id) ON DELETE RESTRICT
 );
 
 -- ========================================================
 -- 6. Учебные группы
 -- ========================================================
 CREATE TABLE study_groups (
-    group_id SERIAL PRIMARY KEY,
-    course_id INT REFERENCES courses(course_id) ON DELETE RESTRICT,
-    start_date DATE NOT NULL,
-    end_date DATE NOT NULL CHECK (end_date > start_date),
-    actual_price_per_person NUMERIC(12, 2) NOT NULL,
-    status VARCHAR(50) DEFAULT 'Планируется',
-    specification_id INT REFERENCES specifications(document_id) ON DELETE SET NULL
+                              group_id SERIAL PRIMARY KEY,
+                              course_id INT REFERENCES courses(course_id) ON DELETE RESTRICT,
+                              start_date DATE NOT NULL,
+                              end_date DATE NOT NULL CHECK (end_date > start_date),
+                              actual_price_per_person NUMERIC(12, 2) NOT NULL,
+                              status VARCHAR(50) DEFAULT 'Планируется',
+                              specification_id INT REFERENCES specifications(document_id) ON DELETE SET NULL
 );
 
 -- ========================================================
 -- 7. Участники групп
 -- ========================================================
 CREATE TABLE group_participants (
-    participant_id SERIAL PRIMARY KEY,
-    group_id INT REFERENCES study_groups(group_id) ON DELETE CASCADE,
-    employee_id INT REFERENCES employees(employee_id) ON DELETE CASCADE,
-    completion_percentage NUMERIC(5, 2) DEFAULT 0.00
-        CHECK (completion_percentage >= 0 AND completion_percentage <= 100),
-    UNIQUE(group_id, employee_id)
+                                    participant_id SERIAL PRIMARY KEY,
+                                    group_id INT REFERENCES study_groups(group_id) ON DELETE CASCADE,
+                                    employee_id INT REFERENCES employees(employee_id) ON DELETE CASCADE,
+                                    completion_percentage NUMERIC(5, 2) DEFAULT 0.00
+                                        CHECK (completion_percentage >= 0 AND completion_percentage <= 100),
+                                    UNIQUE(group_id, employee_id)
 );
 
 ---- ========================================================
@@ -154,7 +154,7 @@ SELECT
     e.code,
     e.external_id
 FROM employees e
-LEFT JOIN companies c ON e.company_id = c.company_id;
+         LEFT JOIN companies c ON e.company_id = c.company_id;
 
 CREATE OR REPLACE VIEW v_study_groups_full AS
 SELECT
@@ -185,18 +185,18 @@ SELECT
 
     -- Детализация участников (JSON)
     COALESCE(
-        JSON_AGG(
-            JSON_BUILD_OBJECT(
-                'participant_id', gp.participant_id,
-                'employee_id', gp.employee_id,
-                'full_name', e.full_name,
-                'progress', gp.completion_percentage
-            )
-        ) FILTER (WHERE gp.participant_id IS NOT NULL),
-    '[]') AS participants
+            JSON_AGG(
+                    JSON_BUILD_OBJECT(
+                            'participant_id', gp.participant_id,
+                            'employee_id', gp.employee_id,
+                            'full_name', e.full_name,
+                            'progress', gp.completion_percentage
+                    )
+            ) FILTER (WHERE gp.participant_id IS NOT NULL),
+            '[]') AS participants
 FROM study_groups sg
-JOIN courses c ON sg.course_id = c.course_id
-LEFT JOIN group_participants gp ON sg.group_id = gp.group_id
-LEFT JOIN employees e ON gp.employee_id = e.employee_id
+         JOIN courses c ON sg.course_id = c.course_id
+         LEFT JOIN group_participants gp ON sg.group_id = gp.group_id
+         LEFT JOIN employees e ON gp.employee_id = e.employee_id
 GROUP BY sg.group_id, c.course_name, sg.start_date, sg.end_date,
          sg.status, sg.actual_price_per_person, sg.specification_id;
