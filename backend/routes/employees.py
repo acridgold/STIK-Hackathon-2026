@@ -17,23 +17,17 @@ def get_employees():
 def create_employee():
     try:
         data = EmployeeCreate.model_validate(request.json)
-
-        # Проверяем совпадения ДО создания
-        similar = employee_repository.find_similar(
-            data.full_name, data.company_id
-        )
-
+        similar = employee_repository.find_similar(data.full_name, data.company_id)
         employee = employee_repository.create(data.model_dump())
 
-        response: dict = {"data": employee}
+        # Плоская структура — без обёртки { data: ... }
         if similar:
-            response["warning"] = (
-                f"Найдено {len(similar)} сотрудник(ов) с такими же данными "
-                f"в этой компании. Возможно, сотрудник уже существует."
+            employee["warning"] = (
+                f"Найдено {len(similar)} сотрудник(ов) с такими же данными в этой компании."
             )
-            response["similar"] = similar
+            employee["similar"] = similar
 
-        return jsonify(response), 201
+        return jsonify(employee), 201
 
     except ValidationError as e:
         return jsonify({

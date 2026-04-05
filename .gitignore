@@ -24,7 +24,7 @@ build/
 eggs/
 parts/
 var/
-.env/
+backend/.env/
 wheels/
 share/python-wheels/
 *.egg-info/
@@ -98,12 +98,12 @@ Thumbs.db
 
 # ====================== Frontend (если будет в этом же репозитории) ======================
  node_modules/
- .env
+ backend/.env
  dist/
  build/
 
 # ====================== Дополнительно ======================
-.env
+backend/.env
 .env.local
 .env.production
 .env.development
