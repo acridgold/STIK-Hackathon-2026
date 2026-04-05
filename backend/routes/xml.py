@@ -8,29 +8,8 @@ from utils.xml_parser import XMLParser, XMLValidationError, detect_xml_type
 
 xml_bp = Blueprint("xml", __name__)
 
-
 @xml_bp.route('/upload', methods=['POST'])
 def upload_xml():
-    """
-    Загрузка одного XML файла.
-
-    Параметры form-data:
-      file — XML файл
-      type — тип данных: 'courses' | 'employees' | 'groups'
-             если не передан — определяется автоматически по структуре XML
-
-    Ответ 200:
-      { "success": true, "count": 3, "warnings": [] }
-
-    Ответ 400 (ошибка валидации XML):
-      { "error": "Обязательное поле <sCourseHL> отсутствует" }
-
-    Ответ 400 (неверный тип):
-      { "error": "Invalid type. Expected: courses | employees | groups" }
-
-    Ответ 500 (непредвиденная ошибка):
-      { "error": "..." }
-    """
     file = request.files.get('file')
     data_type = request.form.get('type')
 

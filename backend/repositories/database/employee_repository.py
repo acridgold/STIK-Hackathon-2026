@@ -2,19 +2,23 @@ from typing import Dict, List, Optional
 
 from repositories.base import EmployeeRepositoryInterface
 from utils.db_connection import get_connection
+
 class EmployeeRepository(EmployeeRepositoryInterface):
 
     def get_all(self) -> List[Dict]:
         with get_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT * FROM employees ORDER BY employee_id;")
+                cur.execute(
+                    "SELECT * FROM v_employees_full ORDER BY id;"
+                )
                 return [dict(row) for row in cur.fetchall()]
 
     def get_by_id(self, employee_id: str) -> Optional[Dict]:
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT * FROM employees WHERE employee_id = %s;", (employee_id,)
+                    "SELECT * FROM v_employees_full WHERE id = %s;",
+                    (employee_id,)
                 )
                 row = cur.fetchone()
                 return dict(row) if row else None
